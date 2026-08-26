@@ -23,7 +23,7 @@
                         <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
                         <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
                         <a href="{{ url_for('admin_settings') }}">Configuration</a>
-                        <a href="#" onclick="toggleTheme(); return false;">Toggle Theme</a>
+                        <a href="#" class="theme-toggle" id="theme-toggle" onclick="toggleTheme(); return false;">🌙 Dark</a>
                     </div>
                 </div>
                 {% endif %}
