@@ -5,6 +5,14 @@ function toggleTheme() {
     const next = current === 'dark' ? 'light' : 'dark';
     html.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
+    updateThemeUI(next);
+}
+
+function updateThemeUI(theme) {
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) {
+        toggle.textContent = (theme === 'dark' ? '🌙 Dark' : '☀️ Light');
+    }
 }
 
 // Dropdown toggle
@@ -55,4 +63,5 @@ setInterval(updateSyncBadge, 30000);
 document.addEventListener('DOMContentLoaded', function() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeUI(savedTheme);
 });

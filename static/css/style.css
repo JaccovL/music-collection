@@ -155,9 +155,25 @@ a:hover {
     background: var(--bg-elevated);
     text-decoration: none;
 }
-
 .dropdown-menu a:not(:last-child) {
     border-bottom: 1px solid var(--border);
+}
+
+.theme-label {
+    display: block;
+    padding: 0.4rem 1rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    border-top: 1px solid var(--border);
+    margin-top: 0.25rem;
+}
+
+.theme-switch {
+    font-weight: 500;
+    color: var(--primary) !important;
 }
 
 /* Sync bar */
@@ -174,6 +190,7 @@ a:hover {
     transition: border-color 0.2s, background 0.2s;
     color: var(--text-muted);
 }
+
 
 .sync-status-badge:hover {
     border-color: var(--primary);
