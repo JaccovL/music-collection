@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}{{ release.title }} - Music Collection{% endblock %}
+
+{% block content %}
+<div class="release-detail">
+    <div class="release-header">
+        <div class="release-cover-large">
+            {% if release.cover_image_url %}
+            <img src="{{ release.cover_image_url }}" alt="{{ release.title }}">
+            {% elif release.thumb_url %}
+            <img src="{{ release.thumb_url }}" alt="{{ release.title }}">
+            {% else %}
+            <div class="no-cover">🎵</div>
+            {% endif %}
+        </div>
+        
+        <div class="release-header-info">
+            <h1>{{ release.title }}</h1>
+            <h2><a href="{{ url_for('artist_detail', artist_id=release.artist.id) }}">{{ release.artist.name }}</a></h2>
+            
+            <dl class="release-details">
+                {% if release.year %}
+                <div class="detail-row">
+                    <dt>Year</dt>
+                    <dd>{{ release.year }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.format %}
+                <div class="detail-row">
+                    <dt>Format</dt>
+                    <dd>{{ release.format }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.format_details %}
+                <div class="detail-row">
+                    <dt>Format Details</dt>
+                    <dd>{{ release.format_details }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.label %}
+                <div class="detail-row">
+                    <dt>Label</dt>
+                    <dd>{{ release.label }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.catalog_number %}
+                <div class="detail-row">
+                    <dt>Catalog #</dt>
+                    <dd>{{ release.catalog_number }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.country %}
+                <div class="detail-row">
+                    <dt>Country</dt>
+                    <dd>{{ release.country }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.genre %}
+                <div class="detail-row">
+                    <dt>Genre</dt>
+                    <dd>{{ release.genre }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.style %}
+                <div class="detail-row">
+                    <dt>Style</dt>
+                    <dd>{{ release.style }}</dd>
+                </div>
+                {% endif %}
+                
+                {% if release.date_added %}
+                <div class="detail-row">
+                    <dt>Date Added</dt>
+                    <dd>{{ release.date_added.strftime('%Y-%m-%d') }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+    
+    {% if tracks %}
+    <div class="tracklist">
+        <h3>Tracklist</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for track in tracks %}
+                <tr>
+                    <td class="track-position">{{ track.position }}</td>
+                    <td class="track-title">{{ track.title }}</td>
+                    <td class="track-duration">{{ track.duration }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

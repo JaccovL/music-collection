@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}Music Collection{% endblock %}
+
+{% block content %}
+<div class="collection-page">
+    <!-- Search bar -->
+    <div class="search-bar">
+        <div class="search-row">
+            <input type="text" id="global-search" placeholder="Search by title, artist, label, genre, style..." class="search-input" value="{{ query }}">
+            <button class="btn btn-primary" onclick="applyFilters()">Search</button>
+            <a href="{{ url_for('search') }}" class="btn btn-sm">Reset</a>
+        </div>
+        
+        <div class="filters-row" id="filters-row">
+            <div class="filter-group">
+                <label>Format</label>
+                <select id="filter-format" onchange="applyFilters()">
+                    <option value="">All</option>
+                    {% for f in formats %}
+                    <option value="{{ f }}" {% if format_filter == f %}selected{% endif %}>{{ f }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Genre</label>
+                <select id="filter-genre" onchange="applyFilters()">
+                    <option value="">All</option>
+                    {% for g in genres %}
+                    <option value="{{ g }}" {% if genre_filter == g %}selected{% endif %}>{{ g }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Style</label>
+                <select id="filter-style" onchange="applyFilters()">
+                    <option value="">All</option>
+                    {% for s in styles %}
+                    <option value="{{ s }}" {% if style_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Year from</label>
+                <input type="number" id="filter-year-from" placeholder="1900" class="input-sm" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+            </div>
+            
+            <div class="filter-group">
+                <label>Year to</label>
+                <input type="number" id="filter-year-to" placeholder="2024" class="input-sm" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+            </div>
+            
+            <div class="filter-group">
+                <label>Country</label>
+                <select id="filter-country" onchange="applyFilters()">
+                    <option value="">All</option>
+                    {% for c in countries %}
+                    <option value="{{ c }}" {% if country_filter == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Label</label>
+                <select id="filter-label" onchange="applyFilters()">
+                    <option value="">All</option>
+                    {% for l in labels %}
+                    <option value="{{ l }}" {% if label_filter == l %}selected{% endif %}>{{ l }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <!-- View options -->
+        <div class="view-bar">
+            <div class="view-toggles">
+                <button class="view-btn active" onclick="setView('table')" id="view-table" title="Table view">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3"/><rect x="1" y="6" width="14" height="3"/><rect x="1" y="11" width="14" height="3"/></svg>
+                </button>
+                <button class="view-btn" onclick="setView('cards')" id="view-cards" title="Card view">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/><rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/></svg>
+                </button>
+            </div>
+            
+            <div class="column-toggle">
+                <button class="btn btn-sm" onclick="toggleColumnMenu()">Columns ▾</button>
+                <div class="column-menu" id="column-menu">
+                    <label><input type="checkbox" data-col="thumb" checked> Thumbnail</label>
+                    <label><input type="checkbox" data-col="artist" checked> Artist</label>
+                    <label><input type="checkbox" data-col="title" checked> Title</label>
+                    <label><input type="checkbox" data-col="year" checked> Year</label>
+                    <label><input type="checkbox" data-col="format" checked> Format</label>
+                    <label><input type="checkbox" data-col="genre" checked> Genre</label>
+                    <label><input type="checkbox" data-col="style" checked> Style</label>
+                    <label><input type="checkbox" data-col="label" checked> Label</label>
+                    <label><input type="checkbox" data-col="country" checked> Country</label>
+                    <label><input type="checkbox" data-col="catalog" checked> Catalog #</label>
+                    <label><input type="checkbox" data-col="date_added" checked> Date Added</label>
+                    <label><input type="checkbox" data-col="tracks" checked> Tracks</label>
+                </div>
+            </div>
+            
+            <div class="results-count" id="results-count">{{ pagination.total }} releases</div>
+        </div>
+    </div>
+    
+    <!-- Content -->
+    <div class="collection-content" id="collection-content">
+        <!-- Table view -->
+        <div class="table-view" id="table-view">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th class="col-thumb" data-sort="thumb"></th>
+                        <th class="col-artist" data-sort="artist"><span>Artist</span></th>
+                        <th class="col-title" data-sort="title"><span>Title</span></th>
+                        <th class="col-year" data-sort="year"><span>Year</span></th>
+                        <th class="col-format" data-sort="format"><span>Format</span></th>
+                        <th class="col-genre" data-sort="genre"><span>Genre</span></th>
+                        <th class="col-style" data-sort="style"><span>Style</span></th>
+                        <th class="col-label" data-sort="label"><span>Label</span></th>
+                        <th class="col-country" data-sort="country"><span>Country</span></th>
+                        <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
+                        <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
+                        <th class="col-tracks" data-sort="tracks"><span>Tracks</span></th>
+                        <th class="col-view"><span>View</span></th>
+                    </tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+        
+        <!-- Cards view -->
+        <div class="cards-view" id="cards-view" style="display:none;"></div>
+    </div>
+    
+    <!-- Detail modal — moved outside main content -->
+    <div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modal-title">Release Details</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, genre=genre_filter, style=style_filter, country=country_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.prev_num) }}" class="btn btn-sm">← Prev</a>
+        {% endif %}
+        
+        <div class="page-goto">
+            <input type="number" id="goto-page" min="1" max="{{ pagination.pages }}" placeholder="#" class="input-sm">
+            <button class="btn btn-sm" onclick="gotoPage()">Go</button>
+        </div>
+        
+        <span class="page-info">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+        
+        <div class="per-page">
+            <select id="per-page" onchange="changePerPage()">
+                <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if pagination.per_page == 500 %}selected{% endif %}>500</option>
+                <option value="1000" {% if pagination.per_page == 1000 %}selected{% endif %}>1000</option>
+            </select>
+        </div>
+        
+        {% if pagination.has_next %}
+        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, genre=genre_filter, style=style_filter, country=country_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.next_num) }}" class="btn btn-sm">Next →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const releases = {{ releases_json|safe }};
+
+let currentView = 'table';
+let currentSort = '{{ sort }}';
+let currentOrder = '{{ order }}';
+let columnVisibility = {
+    thumb: true, artist: true, title: true, year: true, format: true,
+    genre: true, style: true, label: true, country: true, catalog: true,
+    date_added: true, tracks: true
+};
+
+// Escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Set view (table/cards)
+function setView(view) {
+    currentView = view;
+    document.getElementById('view-table').classList.toggle('active', view === 'table');
+    document.getElementById('view-cards').classList.toggle('active', view === 'cards');
+    document.getElementById('table-view').style.display = view === 'table' ? 'block' : 'none';
+    document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
+    if (view === 'table') renderTable();
+    else renderCards();
+}
+
+// Toggle column menu
+function toggleColumnMenu() {
+    document.getElementById('column-menu').classList.toggle('open');
+}
+
+// Close column menu when clicking outside
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('column-menu');
+    const btn = e.target.closest('.column-toggle');
+    if (menu && !btn) menu.classList.remove('open');
+});
+
+// Column visibility toggle
+document.querySelectorAll('#column-menu input').forEach(input => {
+    input.addEventListener('change', function() {
+        columnVisibility[this.dataset.col] = this.checked;
+        localStorage.setItem('columnVisibility', JSON.stringify(columnVisibility));
+        updateColumnVisibility();
+    });
+});
+
+// Restore column visibility from localStorage
+const savedVisibility = localStorage.getItem('columnVisibility');
+if (savedVisibility) {
+    columnVisibility = JSON.parse(savedVisibility);
+    document.querySelectorAll('#column-menu input').forEach(input => {
+        input.checked = columnVisibility[input.dataset.col];
+    });
+}
+
+function updateColumnVisibility() {
+    for (const [col, visible] of Object.entries(columnVisibility)) {
+        document.querySelectorAll(`.col-${col}`).forEach(el => {
+            el.style.display = visible ? '' : 'none';
+        });
+    }
+}
+
+// Sorting
+document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', function() {
+        const col = this.dataset.sort;
+        if (currentSort === col) {
+            currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = col;
+            currentOrder = 'asc';
+        }
+        sortData();
+        renderTable();
+    });
+});
+
+function sortData() {
+    releases.sort((a, b) => {
+        let va = a[currentSort];
+        let vb = b[currentSort];
+        
+        // Handle nulls
+        if (va === null) va = '';
+        if (vb === null) vb = '';
+        
+        // Numeric sort for year and tracks
+        if (currentSort === 'year' || currentSort === 'tracks') {
+            va = parseInt(va) || 0;
+            vb = parseInt(vb) || 0;
+            return currentOrder === 'asc' ? va - vb : vb - va;
+        }
+        
+        // String sort
+        va = String(va).toLowerCase();
+        vb = String(vb).toLowerCase();
+        if (va < vb) return currentOrder === 'asc' ? -1 : 1;
+        if (va > vb) return currentOrder === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Render table view
+function renderTable() {
+    const tbody = document.getElementById('table-body');
+    tbody.innerHTML = '';
+    
+    releases.forEach(release => {
+        const tr = document.createElement('tr');
+        tr.className = 'data-row';
+        tr.dataset.id = release.id;
+        tr.onclick = () => showDetail(release.id);
+        
+        const thumbHtml = release.thumb 
+            ? `<img src="${escapeHtml(release.thumb)}" alt="" loading="lazy">`
+            : `<div class="no-cover-table">🎵</div>`;
+        
+        tr.innerHTML = `
+            <td class="col-thumb"><span class="cell-thumb">${thumbHtml}</span></td>
+            <td class="col-artist"><span class="cell-artist">${escapeHtml(release.artist)}</span></td>
+            <td class="col-title"><span class="cell-title">${escapeHtml(release.title)}</span></td>
+            <td class="col-year">${release.year || ''}</td>
+            <td class="col-format">${escapeHtml(release.format)}</td>
+            <td class="col-genre">${escapeHtml(release.genre)}</td>
+            <td class="col-style">${escapeHtml(release.style)}</td>
+            <td class="col-label">${escapeHtml(release.label)}</td>
+            <td class="col-country">${escapeHtml(release.country)}</td>
+            <td class="col-catalog">${escapeHtml(release.catalog)}</td>
+            <td class="col-date_added">${release.date_added || ''}</td>
+            <td class="col-tracks"><span class="track-count" data-id="${release.id}">...</span></td>
+            <td class="col-view"><button class="btn btn-sm" onclick="event.stopPropagation(); showDetail(${release.id})">View</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    updateColumnVisibility();
+    loadTrackCounts();
+}
+
+// Load track counts (batch for visible releases only)
+function loadTrackCounts() {
+    const visibleReleases = releases.slice(0, 50); // Limit to first 50
+    visibleReleases.forEach(release => {
+        fetch(`/api/release-tracks/${release.id}`)
+            .then(r => r.json())
+            .then(tracks => {
+                const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
+                if (el) el.textContent = tracks.length;
+            });
+    });
+}
+
+// Render cards view
+function renderCards() {
+    const container = document.getElementById('cards-view');
+    container.innerHTML = '';
+    
+    releases.forEach(release => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.id = release.id;
+        card.onclick = () => showDetail(release.id);
+        
+        const thumbHtml = release.thumb 
+            ? `<img src="${escapeHtml(release.thumb)}" alt="" loading="lazy">`
+            : `<div class="no-cover-card">🎵</div>`;
+        
+        card.innerHTML = `
+            <div class="card-cover">${thumbHtml}</div>
+            <div class="card-info">
+                <div class="card-artist">${escapeHtml(release.artist)}</div>
+                <div class="card-title">${escapeHtml(release.title)}</div>
+                <div class="card-meta">
+                    ${release.year ? `<span>${release.year}</span>` : ''}
+                    ${release.format ? `<span>${escapeHtml(release.format)}</span>` : ''}
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// Show detail modal
+function showDetail(releaseId) {
+    if (releaseId.target) return; // Prevent event bubbling
+    const release = releases.find(r => r.id === releaseId);
+    if (!release) return;
+    
+    fetch(`/api/release-detail/${releaseId}`)
+        .then(r => r.json())
+        .then(data => {
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+            
+            title.textContent = `${release.artist} - ${release.title}`;
+            
+            const fields = [
+                ['Discogs ID', data.discogs_id],
+                ['Year', data.year],
+                ['Format', data.format],
+                ['Genre', data.genre],
+                ['Style', data.style],
+                ['Label', data.label],
+                ['Catalog #', data.catalog_number],
+                ['Country', data.country],
+                ['Date Added', data.date_added],
+                ['Notes', data.notes]
+            ];
+            
+            let html = '<div class="modal-details">';
+            fields.forEach(([label, value]) => {
+                html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
+            });
+            html += '</div>';
+            
+            // Tracklist
+            if (data.tracks && data.tracks.length > 0) {
+                html += '<h3>Tracklist</h3><table class="modal-tracks">';
+                data.tracks.forEach(t => {
+                    html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
+                });
+                html += '</table>';
+            }
+            
+            // Images
+            if (data.cover_image_url) {
+                html += `<div class="modal-cover"><img src="${escapeHtml(data.cover_image_url)}" alt="Cover"></div>`;
+            }
+            
+            body.innerHTML = html;
+            modal.classList.add('open');
+        });
+}
+
+function closeModal(event) {
+    if (!event || event.target === document.getElementById('detail-modal') || event.target.closest('.modal-close')) {
+        document.getElementById('detail-modal').classList.remove('open');
+    }
+}
+
+// Change items per page
+function changePerPage() {
+    const perPage = document.getElementById('per-page').value;
+    const params = new URLSearchParams(window.location.search);
+    params.set('per_page', perPage);
+    params.delete('page'); // Reset to page 1
+    window.location.href = '{{ url_for("search") }}?' + params.toString();
+}
+
+// Go to specific page
+function gotoPage() {
+    const input = document.getElementById('goto-page');
+    const page = parseInt(input.value);
+    const maxPage = {{ pagination.pages }};
+    
+    if (page && page >= 1 && page <= maxPage) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page);
+        window.location.href = '{{ url_for("search") }}?' + params.toString();
+    }
+}
+
+// Allow Enter key in goto input
+document.getElementById('goto-page').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') gotoPage();
+});
+
+// Apply filters
+function applyFilters() {
+    const params = new URLSearchParams();
+    
+    const search = document.getElementById('global-search').value;
+    const format = document.getElementById('filter-format').value;
+    const genre = document.getElementById('filter-genre').value;
+    const style = document.getElementById('filter-style').value;
+    const yearFrom = document.getElementById('filter-year-from').value;
+    const yearTo = document.getElementById('filter-year-to').value;
+    const country = document.getElementById('filter-country').value;
+    const label = document.getElementById('filter-label').value;
+    
+    if (search) params.set('q', search);
+    if (format) params.set('format', format);
+    if (genre) params.set('genre', genre);
+    if (style) params.set('style', style);
+    if (yearFrom) params.set('year_from', yearFrom);
+    if (yearTo) params.set('year_to', yearTo);
+    if (country) params.set('country', country);
+    if (label) params.set('label', label);
+    
+    window.location.href = '{{ url_for("search") }}?' + params.toString();
+}
+
+// Initial render
+renderTable();
+
+// Sort indicators
+document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+    const indicator = document.createElement('span');
+    indicator.className = 'sort-indicator';
+    th.appendChild(indicator);
+});
+
+function updateSortIndicators() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        const indicator = th.querySelector('.sort-indicator');
+        if (th.dataset.sort === currentSort) {
+            indicator.textContent = currentOrder === 'asc' ? ' ↑' : ' ↓';
+        } else {
+            indicator.textContent = '';
+        }
+    });
+}
+updateSortIndicators();
+</script>
+{% endblock %}

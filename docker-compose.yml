@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  music-collection:
+    build: .
+    container_name: music-collection
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://music:music@10.10.0.10:3306/music_collection
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DISCOGS_TOKEN=${DISCOGS_TOKEN:-}
+      - DISCOGS_USERNAME=${DISCOGS_USERNAME:-}
+      - LDAP_ENABLED=${LDAP_ENABLED:-false}
+      - LDAP_HOST=${LDAP_HOST:-}
+      - LDAP_PORT=${LDAP_PORT:-389}
+      - LDAP_USE_SSL=${LDAP_USE_SSL:-false}
+      - LDAP_BASE_DN=${LDAP_BASE_DN:-}
+      - LDAP_BIND_DN=${LDAP_BIND_DN:-}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD:-}
+      - LDAP_USER_FILTER=${LDAP_USER_FILTER:-(uid={username})}
+      - LDAP_GROUP_DN=${LDAP_GROUP_DN:-}
+      - LDAP_ADMIN_GROUP_DN=${LDAP_ADMIN_GROUP_DN:-}
+      - UPDATE_INTERVAL_HOURS=${UPDATE_INTERVAL_HOURS:-24}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
