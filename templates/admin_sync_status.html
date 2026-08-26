@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Sync Status - Music Collection{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>Sync Status</h1>
+    
+    <section class="settings-section">
+        <h2>Collection Sync</h2>
+        <div id="sync-log-status">
+            {% if sync_log %}
+                {% if sync_log.status == 'running' %}
+                    <p><span class="sync-dot running"></span> Syncing...</p>
+                {% elif sync_log.status == 'success' %}
+                    <p><span class="sync-dot success"></span> Synced — Added: {{ sync_log.releases_added }}, Updated: {{ sync_log.releases_updated }}</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ sync_log.finished_at.strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
+                {% elif sync_log.status == 'error' %}
+                    <p><span class="sync-dot error"></span> Failed — {{ sync_log.error_message or 'Unknown error' }}</p>
+                {% endif %}
+            {% else %}
+                <p><span class="sync-dot idle"></span> Never run</p>
+            {% endif %}
+        </div>
+        <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
+    </section>
+    
+    <section class="settings-section">
+        <h2>Track Sync</h2>
+        <div id="track-sync-status">
+            <p>Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
+            <p style="color: var(--text-muted);">{{ releases_without_tracks }} remaining</p>
+        </div>
+        <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
+    </section>
+    
+    <section class="settings-section">
+        <h2>Database Stats</h2>
+        <p>Total releases: <strong>{{ total_releases }}</strong></p>
+        <p>Total artists: <strong>{{ total_artists }}</strong></p>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function triggerSync() {
+    const btn = document.getElementById('sync-btn');
+    const status = document.getElementById('sync-log-status');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    status.innerHTML = '<p><span class="sync-dot running"></span> Syncing...</p>';
+    
+    fetch('{{ url_for("trigger_sync") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${data.error}</p>`;
+            } else {
+                status.innerHTML = '<p><span class="sync-dot running"></span> Sync started...</p>';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Sync Collection Now';
+        })
+        .catch(err => {
+            status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${err}</p>`;
+            btn.disabled = false;
+            btn.textContent = 'Sync Collection Now';
+        });
+}
+
+function triggerTrackSync() {
+    const btn = document.getElementById('track-sync-btn');
+    const status = document.getElementById('track-sync-status');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    
+    fetch('{{ url_for("trigger_track_sync") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${data.error}</p>`;
+            } else {
+                status.innerHTML = '<p><span class="sync-dot running"></span> Track sync started...</p>';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Sync Tracks Now';
+        })
+        .catch(err => {
+            status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${err}</p>`;
+            btn.disabled = false;
+            btn.textContent = 'Sync Tracks Now';
+        });
+}
+
+// Poll sync status every 10 seconds
+function pollSyncStatus() {
+    fetch('{{ url_for("sync_status") }}')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('sync-log-status');
+            if (!container) return;
+            
+            if (data.status === 'never_run') {
+                container.innerHTML = '<p><span class="sync-dot idle"></span> Never run</p>';
+            } else if (data.status === 'running') {
+                container.innerHTML = '<p><span class="sync-dot running"></span> Syncing...</p>';
+            } else if (data.status === 'success') {
+                const last = data.finished_at ? new Date(data.finished_at).toLocaleString() : '';
+                container.innerHTML = `<p><span class="sync-dot success"></span> Synced — Added: ${data.releases_added}, Updated: ${data.releases_updated}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+            } else if (data.status === 'error') {
+                container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p>`;
+            }
+        });
+    
+    fetch('{{ url_for("track_sync_status") }}')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('track-sync-status');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <p>Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>
+                <p style="color: var(--text-muted);">${data.releases_without_tracks} remaining</p>
+            `;
+        });
+}
+
+pollSyncStatus();
+setInterval(pollSyncStatus, 10000);
+</script>
+{% endblock %}

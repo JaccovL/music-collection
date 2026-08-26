@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Music Collection{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="nav-brand">🎵 Music Collection</a>
+            <div class="nav-links">
+                <a href="{{ url_for('search') }}">Search</a>
+                {% if current_user.is_admin %}
+                <div class="dropdown" id="settings-dropdown">
+                    <button class="dropdown-toggle" onclick="toggleDropdown()">
+                        Settings
+                        <span class="dropdown-arrow">▾</span>
+                    </button>
+                    <div class="dropdown-menu">
+                        <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
+                        <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
+                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
+                    </div>
+                </div>
+                {% endif %}
+                <button id="theme-toggle" class="btn-icon" title="Toggle theme">🌙</button>
+                <a href="{{ url_for('admin_sync_status') }}" class="sync-status-badge" id="sync-badge" title="Click for sync details">
+                    <span class="sync-dot idle" id="sync-dot"></span>
+                    <span id="sync-label">Sync</span>
+                </a>
+                <span class="nav-user">{{ current_user.username }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+    
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">
+                {{ message }}
+                <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+    
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

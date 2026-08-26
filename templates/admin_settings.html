@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Settings - Music Collection{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>Settings</h1>
+    
+    <form method="POST" class="settings-form" id="settings-form">
+        <section class="settings-section">
+            <h2>Discogs Integration</h2>
+            <div class="form-group">
+                <label for="discogs_username">Discogs Username</label>
+                <input type="text" id="discogs_username" name="discogs_username" value="{{ settings.discogs_username }}">
+            </div>
+            <div class="form-group">
+                <label for="discogs_token">Discogs API Token</label>
+                <input type="password" id="discogs_token" name="discogs_token" value="{{ settings.discogs_token }}">
+                <small>Get from <a href="https://www.discogs.com/settings/developers" target="_blank">discogs.com/settings/developers</a></small>
+            </div>
+        </section>
+        
+        <section class="settings-section">
+            <h2>MariaDB Connection</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="db_host">Host</label>
+                    <input type="text" id="db_host" name="db_host" value="{{ settings.db_host }}" placeholder="10.10.0.10">
+                </div>
+                <div class="form-group">
+                    <label for="db_port">Port</label>
+                    <input type="number" id="db_port" name="db_port" value="{{ settings.db_port }}" placeholder="3306">
+                </div>
+                <div class="form-group">
+                    <label for="db_name">Database</label>
+                    <input type="text" id="db_name" name="db_name" value="{{ settings.db_name }}" placeholder="music_collection">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="db_user">Username</label>
+                    <input type="text" id="db_user" name="db_user" value="{{ settings.db_user }}" placeholder="music">
+                </div>
+                <div class="form-group">
+                    <label for="db_password">Password</label>
+                    <input type="password" id="db_password" name="db_password" value="{{ settings.db_password }}">
+                </div>
+            </div>
+        </section>
+        
+        <section class="settings-section">
+            <h2>LDAP Authentication</h2>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="ldap_enabled" {% if settings.ldap_enabled == 'true' %}checked{% endif %}>
+                    Enable LDAP Authentication
+                </label>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ldap_host">LDAP Host</label>
+                    <input type="text" id="ldap_host" name="ldap_host" value="{{ settings.ldap_host }}" placeholder="ldap.example.com">
+                </div>
+                <div class="form-group">
+                    <label for="ldap_port">Port</label>
+                    <input type="number" id="ldap_port" name="ldap_port" value="{{ settings.ldap_port }}" placeholder="389">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="ldap_use_ssl" {% if settings.ldap_use_ssl == 'true' %}checked{% endif %}>
+                        Use SSL
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="ldap_base_dn">Base DN</label>
+                <input type="text" id="ldap_base_dn" name="ldap_base_dn" value="{{ settings.ldap_base_dn }}" placeholder="dc=example,dc=com">
+            </div>
+            <div class="form-group">
+                <label for="ldap_bind_dn">Service Account DN (optional)</label>
+                <input type="text" id="ldap_bind_dn" name="ldap_bind_dn" value="{{ settings.ldap_bind_dn }}" placeholder="cn=readonly,dc=example,dc=com">
+            </div>
+            <div class="form-group">
+                <label for="ldap_bind_password">Service Account Password</label>
+                <input type="password" id="ldap_bind_password" name="ldap_bind_password" value="{{ settings.ldap_bind_password }}">
+            </div>
+            <div class="form-group">
+                <label for="ldap_user_filter">User Filter</label>
+                <input type="text" id="ldap_user_filter" name="ldap_user_filter" value="{{ settings.ldap_user_filter }}" placeholder="(uid={username})">
+            </div>
+            <div class="form-group">
+                <label for="ldap_group_dn">Required Group DN (membership required)</label>
+                <input type="text" id="ldap_group_dn" name="ldap_group_dn" value="{{ settings.ldap_group_dn }}" placeholder="cn=music-app,ou=groups,dc=example,dc=com">
+            </div>
+            <div class="form-group">
+                <label for="ldap_admin_group_dn">Admin Group DN (optional)</label>
+                <input type="text" id="ldap_admin_group_dn" name="ldap_admin_group_dn" value="{{ settings.ldap_admin_group_dn }}" placeholder="cn=music-admin,ou=groups,dc=example,dc=com">
+            </div>
+        </section>
+        
+        <section class="settings-section">
+            <h2>Sync Schedule</h2>
+            <div class="form-group">
+                <label for="update_interval_hours">Update Interval (hours)</label>
+                <input type="number" id="update_interval_hours" name="update_interval_hours" value="{{ settings.update_interval_hours }}" min="1" max="168">
+            </div>
+        </section>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Dirty form detection
+let isDirty = false;
+const form = document.getElementById('settings-form');
+
+form.addEventListener('input', function() {
+    isDirty = true;
+});
+
+form.addEventListener('change', function() {
+    isDirty = true;
+});
+
+form.addEventListener('submit', function() {
+    isDirty = false;
+});
+
+// Warn before leaving with unsaved changes
+window.addEventListener('beforeunload', function(e) {
+    if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
+// Intercept navigation links
+document.querySelectorAll('a[href]').forEach(link => {
+    link.addEventListener('click', function(e) {
+        if (isDirty) {
+            if (!confirm('You have unsaved changes. Leave without saving?')) {
+                e.preventDefault();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

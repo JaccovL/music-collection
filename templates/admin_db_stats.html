@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Database Statistics - Music Collection{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>Database Statistics</h1>
+    
+    <section class="settings-section">
+        <h2>Database Size</h2>
+        <p>Total size: <strong>{{ "%.2f"|format(total_size) }} MB</strong></p>
+    </section>
+    
+    <section class="settings-section">
+        <h2>Table Details</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Table</th>
+                    <th>Data (MB)</th>
+                    <th>Index (MB)</th>
+                    <th>Total (MB)</th>
+                    <th>Rows</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for table in tables %}
+                <tr>
+                    <td>{{ table[0] }}</td>
+                    <td>{{ table[1] }}</td>
+                    <td>{{ table[2] }}</td>
+                    <td><strong>{{ table[3] }}</strong></td>
+                    <td>{{ table[4]|round(0)|int }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}

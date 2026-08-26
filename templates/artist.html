@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ artist.name }} - Music Collection{% endblock %}
+
+{% block content %}
+<div class="artist-detail">
+    <div class="artist-header">
+        <h1>{{ artist.name }}</h1>
+        {% if artist.profile %}
+        <p class="artist-profile">{{ artist.profile }}</p>
+        {% endif %}
+    </div>
+    
+    <h2>Releases ({{ releases|length }})</h2>
+    
+    <div class="release-grid">
+        {% for release in releases %}
+        <a href="{{ url_for('release_detail', release_id=release.id) }}" class="release-card">
+            <div class="release-cover">
+                {% if release.thumb_url %}
+                <img src="{{ release.thumb_url }}" alt="{{ release.title }}" loading="lazy">
+                {% else %}
+                <div class="no-cover">🎵</div>
+                {% endif %}
+            </div>
+            <div class="release-info">
+                <div class="release-title">{{ release.title }}</div>
+                <div class="release-meta">
+                    {% if release.year %}{{ release.year }}{% endif %}
+                    {% if release.format %} · {{ release.format }}{% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
