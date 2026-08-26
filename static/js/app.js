@@ -1,29 +1,11 @@
-// Theme toggle
-document.addEventListener('DOMContentLoaded', function() {
-    const toggle = document.getElementById('theme-toggle');
+// Theme toggle - works from dropdown menu
+function toggleTheme() {
     const html = document.documentElement;
-    
-    // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    html.setAttribute('data-theme', savedTheme);
-    updateToggleIcon(savedTheme);
-    
-    if (toggle) {
-        toggle.addEventListener('click', function() {
-            const current = html.getAttribute('data-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
-            html.setAttribute('data-theme', next);
-            localStorage.setItem('theme', next);
-            updateToggleIcon(next);
-        });
-    }
-    
-    function updateToggleIcon(theme) {
-        if (toggle) {
-            toggle.textContent = theme === 'dark' ? '☀️' : '🌙';
-        }
-    }
-});
+    const current = html.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+}
 
 // Dropdown toggle
 function toggleDropdown() {
@@ -68,3 +50,9 @@ function updateSyncBadge() {
 // Initial poll and interval
 updateSyncBadge();
 setInterval(updateSyncBadge, 30000);
+
+// Load saved theme on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+});
