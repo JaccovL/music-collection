@@ -23,16 +23,16 @@
                         <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
                         <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
                         <a href="{{ url_for('admin_settings') }}">Configuration</a>
+                        <a href="#" onclick="toggleTheme(); return false;">Toggle Theme</a>
                     </div>
                 </div>
                 {% endif %}
-                <button id="theme-toggle" class="btn-icon" title="Toggle theme">🌙</button>
+                <span class="nav-user">{{ current_user.username }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
                 <a href="{{ url_for('admin_sync_status') }}" class="sync-status-badge" id="sync-badge" title="Click for sync details">
                     <span class="sync-dot idle" id="sync-dot"></span>
                     <span id="sync-label">Sync</span>
                 </a>
-                <span class="nav-user">{{ current_user.username }}</span>
-                <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
             </div>
         </div>
     </nav>
