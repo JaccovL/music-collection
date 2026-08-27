@@ -11,35 +11,42 @@ A web application for browsing and managing a personal music collection synced f
 - **Advanced Filters** — Filter by Format, Genre, Style, Country, Label, Year range
 - **Sortable Columns** — Click any column header to sort
 - **Dual Views** — Table view (spreadsheet-like) or Card view (grid of covers)
-- **Detail Modal** — Click any release for full info: tracklist, metadata, cover image
-- **Duplicate Detection** — Highlights releases with same artist + title
+- **Detail Modal** — Click any release for full info: cover image, tracklist, metadata
 - **Responsive Design** — Works on desktop, tablet, and mobile
 - **Dark/Light Theme** — Toggle with one click
 - **LDAP Auth Ready** — Settings page configured for LDAP integration
-- **Database Stats** — Live view of table sizes and row counts
+- **Local Admin Login** — Fallback login when LDAP is unavailable
+- **Health Checks** — MariaDB and LDAP connectivity monitoring
+- **Database Stats** — Modern dashboard with table sizes and visual bar chart
 - **Settings Panel** — Configure Discogs token, update interval, database connection
 
 ## Version History
 
-### v1.1.0 (2026-08-27)
+### v1.2.0 (2026-08-28)
 - **Health Checks** — MariaDB and LDAP connectivity monitoring at `/admin/health`
 - **Health API** — JSON endpoint at `/api/health` for monitoring integration
-- **Local Fallback Login** — Admin can log in when LDAP is unavailable (configurable in settings)
+- **Local Admin Login** — Fallback login when LDAP is unavailable (configurable)
+- **Database Statistics** — Modern dashboard redesign with visual bar chart
+- **Track Sync** — Now mirrors Collection Sync with status, timestamp, and UpdateLog entries
+- **Cover Image** — Shows in detail modal (with thumb fallback for older releases)
+- **Settings** — Dropdown reordered (Configuration first), "Local Admin Login" renamed from "Local Fallback"
+- **Bug Fixes** — Table overflow handling, CSS restoration, route conflict fix
+- **Timezone** — Container runs on Europe/Amsterdam
+
+### v1.1.0 (2026-08-27)
+- **Health Checks** — Initial MariaDB and LDAP monitoring
 - **Filter Cache** — 5-minute cache for filter options reduces database queries
 - **Settings** — Added "Allow local admin login when LDAP is unavailable" option
-- **Bug Fixes** — Fixed `get_setting()` handling of empty strings, `db_port` parsing
 
 ### v1.0.1 (2026-08-26)
 - **Cosmetic** — Moved theme toggle into Settings dropdown menu
 - **Theme Display** — Shows current theme as icon+text (🌙 Dark / ☀️ Light)
 - **Sync Badge** — Moved sync status badge to right side of navbar
-- **Layout** — Cleaner navbar: `Search | Settings ▾ | username | Logout | [Sync ●]`
 
 ### v1.0.0 (2026-08-26)
 - **Initial Release** — Discogs Music Collection Web App
 - Flask backend with MariaDB database
-- Search with filters (format, genre, style, country, label, year range)
-- Sortable columns, table and card views
+- Search with filters, sortable columns, table and card views
 - Detail modal with tracklist and cover image
 - Dark/light theme toggle
 - Settings page, sync status, database statistics
@@ -93,6 +100,7 @@ A web application for browsing and managing a personal music collection synced f
    ```bash
    docker build -t music-collection .
    docker run -d --name music-collection -p 5000:5000 \
+     -e TZ=Europe/Amsterdam \
      -e DATABASE_URL="mysql+pymysql://music:***@db-host:3306/music_collection" \
      -e SECRET_KEY="your-secret" \
      -e DISCOGS_TOKEN="your-token" \
@@ -161,6 +169,7 @@ music-collection/
 | `/logout` | GET | Logout |
 | `/admin/settings` | GET/POST | Configuration panel |
 | `/admin/sync-status` | GET | Sync status page |
+| `/admin/sync-status-api` | GET | Sync status JSON API |
 | `/admin/sync-collection` | POST | Trigger collection sync |
 | `/admin/sync-tracks` | POST | Trigger track sync |
 | `/admin/db-stats` | GET | Database statistics |
