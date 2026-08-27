@@ -20,10 +20,10 @@
                         <span class="dropdown-arrow">▾</span>
                     </button>
                     <div class="dropdown-menu">
+                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
                         <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
                         <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
                         <a href="{{ url_for('admin_health') }}">Health Check</a>
-                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
                         <a href="#" class="theme-toggle" id="theme-toggle" onclick="toggleTheme(); return false;">🌙 Dark</a>
                     </div>
                 </div>

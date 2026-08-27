@@ -60,12 +60,14 @@ class Track(db.Model):
 class UpdateLog(db.Model):
     __tablename__ = 'update_log'
     id = db.Column(db.Integer, primary_key=True)
+    sync_type = db.Column(db.String(20), default='collection')  # collection, track
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     finished_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='running')  # running, success, error
     releases_added = db.Column(db.Integer, default=0)
     releases_updated = db.Column(db.Integer, default=0)
     artists_added = db.Column(db.Integer, default=0)
+    tracks_added = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text)
     triggered_by = db.Column(db.String(20))  # cron, manual
 

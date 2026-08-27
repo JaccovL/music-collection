@@ -155,25 +155,9 @@ a:hover {
     background: var(--bg-elevated);
     text-decoration: none;
 }
+
 .dropdown-menu a:not(:last-child) {
     border-bottom: 1px solid var(--border);
-}
-
-.theme-label {
-    display: block;
-    padding: 0.4rem 1rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-    border-top: 1px solid var(--border);
-    margin-top: 0.25rem;
-}
-
-.theme-switch {
-    font-weight: 500;
-    color: var(--primary) !important;
 }
 
 /* Sync bar */
@@ -190,7 +174,6 @@ a:hover {
     transition: border-color 0.2s, background 0.2s;
     color: var(--text-muted);
 }
-
 
 .sync-status-badge:hover {
     border-color: var(--primary);
@@ -498,10 +481,14 @@ a:hover {
 .table-view {
     margin-top: 1rem;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
 }
 
 .data-table {
     width: 100%;
+    min-width: 1200px;
     border-collapse: collapse;
     font-size: 0.85rem;
 }
@@ -511,6 +498,7 @@ a:hover {
     padding: 0.5rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
 }
 
 .data-table th {
@@ -573,21 +561,15 @@ a:hover {
 
 .data-table .cell-artist {
     font-weight: 500;
-    white-space: nowrap;
+    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 200px;
 }
 
 .data-table .cell-title {
-    white-space: nowrap;
+    max-width: 250px;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 250px;
-}
-
-.col-format {
-    min-width: 80px;
 }
 
 .data-table .dup-badge {
@@ -613,6 +595,15 @@ a:hover {
 }
 
 .data-table td.col-thumb {
+    padding: 0.3rem;
+}
+
+.col-view {
+    width: 60px;
+    text-align: center;
+}
+
+.data-table td.col-view {
     padding: 0.3rem;
 }
 
@@ -901,7 +892,7 @@ table tr:hover td {
     background: var(--bg-elevated);
 }
 
-/* Modal — must be hidden by default, shown via JS */
+/* Modal */
 .modal-overlay {
     display: none !important;
     position: fixed;
@@ -1014,48 +1005,16 @@ table tr:hover td {
 }
 
 .modal-cover {
-    margin-top: 1rem;
     text-align: center;
+    margin-bottom: 1rem;
 }
 
 .modal-cover img {
-    max-width: 300px;
+    max-width: 250px;
     border-radius: 8px;
     box-shadow: var(--shadow);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .release-header {
-        flex-direction: column;
-    }
-    
-    .release-cover-large {
-        width: 100%;
-        max-width: 300px;
-        margin: 0 auto;
-    }
-    
-    .filters-row {
-        flex-direction: column;
-    }
-    
-    .form-row {
-        flex-direction: column;
-    }
-    
-    .nav-container {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .pagination {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-}
-</body>
-</html>
 /* Health check page */
 .health-grid {
     display: grid;
@@ -1100,4 +1059,93 @@ table tr:hover td {
 .last-check {
     font-size: 0.8rem;
     color: var(--text-muted);
+}
+
+/* Database Statistics - modern layout */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.table-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.table-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.table-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.table-size {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.size-bar {
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.size-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.size-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .release-header { flex-direction: column; }
+    .release-cover-large { width: 100%; max-width: 300px; margin: 0 auto; }
+    .filters-row { flex-direction: column; }
+    .form-row { flex-direction: column; }
+    .nav-container { flex-direction: column; gap: 0.5rem; }
+    .pagination { flex-direction: column; gap: 0.5rem; }
 }

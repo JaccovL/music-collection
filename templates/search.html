@@ -137,7 +137,7 @@
         <div class="cards-view" id="cards-view" style="display:none;"></div>
     </div>
     
-    <!-- Detail modal — moved outside main content -->
+    <!-- Detail modal -->
     <div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -200,95 +200,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Set view (table/cards)
-function setView(view) {
-    currentView = view;
-    document.getElementById('view-table').classList.toggle('active', view === 'table');
-    document.getElementById('view-cards').classList.toggle('active', view === 'cards');
-    document.getElementById('table-view').style.display = view === 'table' ? 'block' : 'none';
-    document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
-    if (view === 'table') renderTable();
-    else renderCards();
-}
-
-// Toggle column menu
-function toggleColumnMenu() {
-    document.getElementById('column-menu').classList.toggle('open');
-}
-
-// Close column menu when clicking outside
-document.addEventListener('click', function(e) {
-    const menu = document.getElementById('column-menu');
-    const btn = e.target.closest('.column-toggle');
-    if (menu && !btn) menu.classList.remove('open');
-});
-
-// Column visibility toggle
-document.querySelectorAll('#column-menu input').forEach(input => {
-    input.addEventListener('change', function() {
-        columnVisibility[this.dataset.col] = this.checked;
-        localStorage.setItem('columnVisibility', JSON.stringify(columnVisibility));
-        updateColumnVisibility();
-    });
-});
-
-// Restore column visibility from localStorage
-const savedVisibility = localStorage.getItem('columnVisibility');
-if (savedVisibility) {
-    columnVisibility = JSON.parse(savedVisibility);
-    document.querySelectorAll('#column-menu input').forEach(input => {
-        input.checked = columnVisibility[input.dataset.col];
-    });
-}
-
-function updateColumnVisibility() {
-    for (const [col, visible] of Object.entries(columnVisibility)) {
-        document.querySelectorAll(`.col-${col}`).forEach(el => {
-            el.style.display = visible ? '' : 'none';
-        });
-    }
-}
-
-// Sorting
-document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
-    th.addEventListener('click', function() {
-        const col = this.dataset.sort;
-        if (currentSort === col) {
-            currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
-        } else {
-            currentSort = col;
-            currentOrder = 'asc';
-        }
-        sortData();
-        renderTable();
-    });
-});
-
-function sortData() {
-    releases.sort((a, b) => {
-        let va = a[currentSort];
-        let vb = b[currentSort];
-        
-        // Handle nulls
-        if (va === null) va = '';
-        if (vb === null) vb = '';
-        
-        // Numeric sort for year and tracks
-        if (currentSort === 'year' || currentSort === 'tracks') {
-            va = parseInt(va) || 0;
-            vb = parseInt(vb) || 0;
-            return currentOrder === 'asc' ? va - vb : vb - va;
-        }
-        
-        // String sort
-        va = String(va).toLowerCase();
-        vb = String(vb).toLowerCase();
-        if (va < vb) return currentOrder === 'asc' ? -1 : 1;
-        if (va > vb) return currentOrder === 'asc' ? 1 : -1;
-        return 0;
-    });
-}
-
 // Render table view
 function renderTable() {
     const tbody = document.getElementById('table-body');
@@ -296,9 +207,6 @@ function renderTable() {
     
     releases.forEach(release => {
         const tr = document.createElement('tr');
-        tr.className = 'data-row';
-        tr.dataset.id = release.id;
-        tr.onclick = () => showDetail(release.id);
         
         const thumbHtml = release.thumb 
             ? `<img src="${escapeHtml(release.thumb)}" alt="" loading="lazy">`
@@ -319,24 +227,12 @@ function renderTable() {
             <td class="col-tracks"><span class="track-count" data-id="${release.id}">...</span></td>
             <td class="col-view"><button class="btn btn-sm" onclick="event.stopPropagation(); showDetail(${release.id})">View</button></td>
         `;
+        tr.onclick = () => showDetail(release.id);
         tbody.appendChild(tr);
     });
     
     updateColumnVisibility();
     loadTrackCounts();
-}
-
-// Load track counts (batch for visible releases only)
-function loadTrackCounts() {
-    const visibleReleases = releases.slice(0, 50); // Limit to first 50
-    visibleReleases.forEach(release => {
-        fetch(`/api/release-tracks/${release.id}`)
-            .then(r => r.json())
-            .then(tracks => {
-                const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
-                if (el) el.textContent = tracks.length;
-            });
-    });
 }
 
 // Render cards view
@@ -347,8 +243,6 @@ function renderCards() {
     releases.forEach(release => {
         const card = document.createElement('div');
         card.className = 'card';
-        card.dataset.id = release.id;
-        card.onclick = () => showDetail(release.id);
         
         const thumbHtml = release.thumb 
             ? `<img src="${escapeHtml(release.thumb)}" alt="" loading="lazy">`
@@ -365,13 +259,14 @@ function renderCards() {
                 </div>
             </div>
         `;
+        card.onclick = () => showDetail(release.id);
         container.appendChild(card);
     });
 }
 
 // Show detail modal
 function showDetail(releaseId) {
-    if (releaseId.target) return; // Prevent event bubbling
+    if (releaseId.target) return;
     const release = releases.find(r => r.id === releaseId);
     if (!release) return;
     
@@ -397,7 +292,13 @@ function showDetail(releaseId) {
                 ['Notes', data.notes]
             ];
             
-            let html = '<div class="modal-details">';
+            let html = '';
+            // Cover image at top (prefer full cover, fallback to thumb)
+            const coverUrl = data.cover_image_url || data.thumb_url;
+            if (coverUrl) {
+                html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
+            }
+            html += '<div class="modal-details">';
             fields.forEach(([label, value]) => {
                 html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
             });
@@ -410,11 +311,6 @@ function showDetail(releaseId) {
                     html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
                 });
                 html += '</table>';
-            }
-            
-            // Images
-            if (data.cover_image_url) {
-                html += `<div class="modal-cover"><img src="${escapeHtml(data.cover_image_url)}" alt="Cover"></div>`;
             }
             
             body.innerHTML = html;
@@ -433,27 +329,17 @@ function changePerPage() {
     const perPage = document.getElementById('per-page').value;
     const params = new URLSearchParams(window.location.search);
     params.set('per_page', perPage);
-    params.delete('page'); // Reset to page 1
-    window.location.href = '{{ url_for("search") }}?' + params.toString();
+    params.set('page', 1);
+    window.location.href = '/search?' + params.toString();
 }
 
-// Go to specific page
+// Go to page
 function gotoPage() {
-    const input = document.getElementById('goto-page');
-    const page = parseInt(input.value);
-    const maxPage = {{ pagination.pages }};
-    
-    if (page && page >= 1 && page <= maxPage) {
-        const params = new URLSearchParams(window.location.search);
-        params.set('page', page);
-        window.location.href = '{{ url_for("search") }}?' + params.toString();
-    }
+    const page = document.getElementById('goto-page').value;
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', page);
+    window.location.href = '/search?' + params.toString();
 }
-
-// Allow Enter key in goto input
-document.getElementById('goto-page').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') gotoPage();
-});
 
 // Apply filters
 function applyFilters() {
@@ -480,6 +366,11 @@ function applyFilters() {
     window.location.href = '{{ url_for("search") }}?' + params.toString();
 }
 
+// Allow Enter key in goto input
+document.getElementById('goto-page').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') gotoPage();
+});
+
 // Initial render
 renderTable();
 
@@ -490,16 +381,65 @@ document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
     th.appendChild(indicator);
 });
 
-function updateSortIndicators() {
-    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
-        const indicator = th.querySelector('.sort-indicator');
-        if (th.dataset.sort === currentSort) {
-            indicator.textContent = currentOrder === 'asc' ? ' ↑' : ' ↓';
-        } else {
-            indicator.textContent = '';
-        }
+// Column visibility toggle
+function toggleColumnMenu() {
+    document.getElementById('column-menu').classList.toggle('open');
+}
+
+// Close column menu when clicking outside
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('column-menu');
+    const toggle = document.querySelector('.column-toggle');
+    if (menu && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        menu.classList.remove('open');
+    }
+});
+
+// Column visibility toggle
+document.querySelectorAll('#column-menu input').forEach(input => {
+    input.addEventListener('change', function() {
+        columnVisibility[this.dataset.col] = this.checked;
+        updateColumnVisibility();
+    });
+});
+
+function updateColumnVisibility() {
+    document.querySelectorAll('.data-table th, .data-table td').forEach(cell => {
+        cell.style.display = '';
+    });
+    
+    Object.entries(columnVisibility).forEach(([col, visible]) => {
+        document.querySelectorAll(`.col-${col}`).forEach(cell => {
+            cell.style.display = visible ? '' : 'none';
+        });
     });
 }
-updateSortIndicators();
+
+// Load track counts (batch for visible releases only)
+function loadTrackCounts() {
+    const visibleReleases = releases.slice(0, 50);
+    visibleReleases.forEach(release => {
+        fetch(`/api/release-tracks/${release.id}`)
+            .then(r => r.json())
+            .then(tracks => {
+                const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
+                if (el) el.textContent = tracks.length;
+            });
+    });
+}
+
+// Set view
+function setView(view) {
+    currentView = view;
+    document.getElementById('table-view').style.display = view === 'table' ? 'block' : 'none';
+    document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
+    document.getElementById('view-table').classList.toggle('active', view === 'table');
+    document.getElementById('view-cards').classList.toggle('active', view === 'cards');
+    localStorage.setItem('view', view);
+}
+
+// Load saved view
+const savedView = localStorage.getItem('view');
+if (savedView) setView(savedView);
 </script>
 {% endblock %}

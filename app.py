@@ -28,9 +28,8 @@ login_manager.login_view = 'login'
 
 scheduler = BackgroundScheduler()
 
-# In-memory cache for filter options (refreshed every 5 min)
 _filter_cache = {'ts': 0, 'data': {}}
-FILTER_CACHE_TTL = 300  # seconds
+FILTER_CACHE_TTL = 300
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -47,7 +46,9 @@ def admin_required(f):
 
 def get_setting(key, default=None):
     s = AppSettings.query.filter_by(key=key).first()
-    return s.value if s and s.value else default
+    if s and s.value:
+        return s.value
+    return default
 
 def set_setting(key, value):
     s = AppSettings.query.filter_by(key=key).first()
@@ -59,7 +60,6 @@ def set_setting(key, value):
     db.session.commit()
 
 def get_filter_options():
-    """Get filter options with caching."""
     now = datetime.utcnow().timestamp()
     if now - _filter_cache['ts'] < FILTER_CACHE_TTL:
         return _filter_cache['data']
@@ -92,20 +92,18 @@ def login():
             flash('Username and password required', 'error')
             return render_template('login.html')
         
-        # Check LDAP availability if configured
         ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
         ldap_available = False
         
         if ldap_enabled:
             ldap_host = get_setting('ldap_host', '')
-            ldap_port = int(get_setting('ldap_port', '389'))
+            ldap_port = int(get_setting('ldap_port', '389') or '389')
             ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
             ldap_bind_dn = get_setting('ldap_bind_dn', '')
             ldap_bind_password = get_setting('ldap_bind_password', '')
             
-            # Check LDAP health
             status = run_health_checks(
-                db_host=get_setting('db_host', '10.10.0.10'),
+                db_host=get_setting('db_host', '10.10.0.10') or '10.10.0.10',
                 db_port=int(get_setting('db_port', '3306') or '3306'),
                 ldap_enabled=True,
                 ldap_host=ldap_host,
@@ -120,21 +118,17 @@ def login():
             
             if not status.ldap_ok and status.ldap_configured:
                 logger.warning(f"LDAP unavailable: {status.ldap_error}")
-                # Check if local fallback is enabled
                 if get_setting('local_fallback', 'true') == 'true':
                     flash('LDAP unavailable — local login enabled', 'warning')
                 else:
                     flash('LDAP unavailable and local fallback disabled', 'error')
                     return render_template('login.html')
         
-        # Try LDAP first if enabled and available
         if ldap_enabled and ldap_available:
             user = _try_ldap_login(username, password)
             if user:
                 return _complete_login(user)
         
-        # Local admin fallback (always available)
-        # Admin can always log in with SECRET_KEY as password
         if username == 'admin' and password == app.config.get('SECRET_KEY'):
             user = User.query.filter_by(username='admin').first()
             if not user:
@@ -148,7 +142,6 @@ def login():
     return render_template('login.html')
 
 def _try_ldap_login(username, password):
-    """Attempt LDAP authentication"""
     try:
         import ldap
     except ImportError:
@@ -156,7 +149,7 @@ def _try_ldap_login(username, password):
         return None
     
     host = get_setting('ldap_host', '')
-    port = int(get_setting('ldap_port', '389'))
+    port = int(get_setting('ldap_port', '389') or '389')
     use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
     base_dn = get_setting('ldap_base_dn', '')
     bind_dn = get_setting('ldap_bind_dn', '')
@@ -260,7 +253,6 @@ def search():
     per_page = request.args.get('per_page', 48, type=int)
     per_page = min(max(per_page, 1), 500)
     
-    # Build query with joined artist to avoid N+1
     q = Release.query.options(db.joinedload(Release.artist))
     
     if query:
@@ -306,10 +298,8 @@ def search():
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     releases = pagination.items
     
-    # Get cached filter options
     filter_opts = get_filter_options()
     
-    # Serialize releases for JavaScript
     releases_json = json.dumps([{
         'id': r.id,
         'title': r.title,
@@ -406,12 +396,11 @@ def api_release_detail(release_id):
 @app.route('/api/health')
 @login_required
 def api_health():
-    """Health check endpoint for monitoring."""
-    db_host = get_setting('db_host', '10.10.0.10')
+    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
     db_port = int(get_setting('db_port', '3306') or '3306')
     ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
     ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389'))
+    ldap_port = int(get_setting('ldap_port', '389') or '389')
     ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
     ldap_bind_dn = get_setting('ldap_bind_dn', '')
     ldap_bind_password = get_setting('ldap_bind_password', '')
@@ -472,15 +461,25 @@ def admin_settings():
 @login_required
 @admin_required
 def admin_sync_status():
-    sync_log = UpdateLog.query.order_by(UpdateLog.id.desc()).first()
+    sync_log = UpdateLog.query.filter_by(sync_type='collection').order_by(UpdateLog.id.desc()).first()
+    track_sync_log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
+    
     total_releases = Release.query.count()
     releases_with_tracks = db.session.query(Release.id).join(Track).distinct().count()
     total_artists = Artist.query.count()
     
+    # Format track sync finished time
+    track_sync_finished = ''
+    if track_sync_log and track_sync_log.finished_at:
+        track_sync_finished = track_sync_log.finished_at.strftime('%Y-%m-%d %H:%M')
+    
     return render_template('admin_sync_status.html',
         sync_log=sync_log, total_releases=total_releases,
         total_artists=total_artists, releases_with_tracks=releases_with_tracks,
-        releases_without_tracks=total_releases - releases_with_tracks
+        releases_without_tracks=total_releases - releases_with_tracks,
+        track_sync_status=track_sync_log.status if track_sync_log else 'never_run',
+        track_sync_finished=track_sync_finished,
+        track_sync_error=track_sync_log.error_message if track_sync_log else None
     )
 
 @app.route('/admin/db-stats')
@@ -507,12 +506,11 @@ def admin_db_stats():
 @login_required
 @admin_required
 def admin_health():
-    """Health check page."""
-    db_host = get_setting('db_host', '10.10.0.10')
+    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
     db_port = int(get_setting('db_port', '3306') or '3306')
     ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
     ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389'))
+    ldap_port = int(get_setting('ldap_port', '389') or '389')
     ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
     ldap_bind_dn = get_setting('ldap_bind_dn', '')
     ldap_bind_password = get_setting('ldap_bind_password', '')
@@ -554,6 +552,11 @@ def trigger_sync():
 @login_required
 @admin_required
 def trigger_track_sync():
+    # Create update_log entry for track sync
+    log = UpdateLog(sync_type='track', status='running', triggered_by='manual')
+    db.session.add(log)
+    db.session.commit()
+    
     def do_track_sync(app_instance):
         with app_instance.app_context():
             try:
@@ -589,9 +592,23 @@ def trigger_track_sync():
                     except Exception as e:
                         logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
                         db.session.rollback()
+                
+                # Update log on completion
+                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+                if log_entry:
+                    log_entry.status = 'success'
+                    log_entry.finished_at = datetime.utcnow()
+                    db.session.commit()
+                
                 logger.info("Track sync complete")
             except Exception as e:
                 logging.error(f"Track sync failed: {e}")
+                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+                if log_entry:
+                    log_entry.status = 'error'
+                    log_entry.error_message = str(e)
+                    log_entry.finished_at = datetime.utcnow()
+                    db.session.commit()
     
     thread = threading.Thread(target=do_track_sync, args=(app,))
     thread.start()
@@ -601,23 +618,52 @@ def trigger_track_sync():
 @login_required
 @admin_required
 def track_sync_status():
+    log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
     total_releases = Release.query.count()
     releases_with_tracks = db.session.query(Release.id).join(Track).distinct().count()
+    
+    if not log:
+        return jsonify({
+            'status': 'never_run',
+            'total_releases': total_releases,
+            'releases_with_tracks': releases_with_tracks,
+            'releases_without_tracks': total_releases - releases_with_tracks,
+            'finished_at': None,
+            'error_message': None
+        })
+    
     return jsonify({
+        'status': log.status,
         'total_releases': total_releases,
         'releases_with_tracks': releases_with_tracks,
-        'releases_without_tracks': total_releases - releases_with_tracks
+        'releases_without_tracks': total_releases - releases_with_tracks,
+        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'error_message': log.error_message
     })
 
-@app.route('/admin/sync-status')
+@app.route('/admin/sync-status-api')
 @login_required
 @admin_required
 def sync_status():
-    log = UpdateLog.query.order_by(UpdateLog.id.desc()).first()
+    """Combined sync status - returns the most recent activity from either collection or track sync."""
+    coll_log = UpdateLog.query.filter_by(sync_type='collection').order_by(UpdateLog.id.desc()).first()
+    track_log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
+    
+    # Use the most recent of the two
+    log = None
+    if coll_log and track_log:
+        log = coll_log if coll_log.started_at >= track_log.started_at else track_log
+    elif coll_log:
+        log = coll_log
+    elif track_log:
+        log = track_log
+    
     if not log:
         return jsonify({'status': 'never_run'})
+    
     return jsonify({
         'status': log.status,
+        'sync_type': log.sync_type,
         'started_at': log.started_at.isoformat() if log.started_at else None,
         'finished_at': log.finished_at.isoformat() if log.finished_at else None,
         'releases_added': log.releases_added,
@@ -629,7 +675,6 @@ def sync_status():
 # ==================== SCHEDULER ====================
 
 def _scheduled_sync():
-    """Background sync job"""
     with app.app_context():
         token = get_setting('discogs_token', '')
         username = get_setting('discogs_username', '')
@@ -641,9 +686,8 @@ def _scheduled_sync():
                 logger.error(f"Scheduled sync failed: {e}")
 
 def _reschedule_sync():
-    """Reschedule the sync job based on current settings"""
     try:
-        interval = int(get_setting('update_interval_hours', '24'))
+        interval = int(get_setting('update_interval_hours', '24') or '24')
         if 'sync_job' in scheduler._jobstore:
             scheduler.remove_job('sync_job')
         scheduler.add_job(_scheduled_sync, 'interval', hours=interval, id='sync_job')
@@ -651,10 +695,9 @@ def _reschedule_sync():
         logger.error(f"Failed to reschedule: {e}")
 
 def start_scheduler():
-    """Start the scheduler"""
     with app.app_context():
         try:
-            interval = int(get_setting('update_interval_hours', '24'))
+            interval = int(get_setting('update_interval_hours', '24') or '24')
             scheduler.add_job(_scheduled_sync, 'interval', hours=interval, id='sync_job', replace_existing=True)
             scheduler.start()
             logger.info("Scheduler started")

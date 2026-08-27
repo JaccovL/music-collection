@@ -12,12 +12,11 @@ class SyncService:
     
     def sync_collection(self, triggered_by='manual', fetch_details=False):
         """Sync all collection items from Discogs"""
-        log = UpdateLog(status='running', triggered_by=triggered_by)
+        log = UpdateLog(sync_type='collection', status='running', triggered_by=triggered_by)
         db.session.add(log)
         db.session.commit()
         
         try:
-            # Get all folders
             folders_data = self.client.get_collection_folders()
             if not folders_data:
                 raise Exception("Failed to fetch collection folders")
@@ -51,13 +50,11 @@ class SyncService:
                         elif result == 'updated':
                             total_updated += 1
                     
-                    # Check if there are more pages
                     pagination = data.get('pagination', {})
                     if page >= pagination.get('pages', 1):
                         break
                     page += 1
                     
-                    # Commit every page
                     db.session.commit()
             
             log.status = 'success'
@@ -134,7 +131,6 @@ class SyncService:
         formats = basic.get('formats', [])
         if formats:
             release.format = ', '.join(f.get('name', '') for f in formats)
-            # Get descriptions
             descriptions = []
             for f in formats:
                 desc = f.get('descriptions', [])
@@ -158,17 +154,22 @@ class SyncService:
         # Country
         release.country = basic.get('country')
         
-        # Images
+        # Images - thumb_url is always available from collection API
         release.thumb_url = basic.get('thumb')
+        
+        # cover_image_url from images array (may not exist in collection API)
         images = basic.get('images', [])
         if images:
-            # Find primary image
             for img in images:
                 if img.get('type') == 'primary':
                     release.cover_image_url = img.get('uri')
                     break
             if not release.cover_image_url:
                 release.cover_image_url = images[0].get('uri')
+        
+        # Fallback: use thumb_url as cover_image_url if no full cover available
+        if not release.cover_image_url and release.thumb_url:
+            release.cover_image_url = release.thumb_url
         
         # Date added
         if date_added:
