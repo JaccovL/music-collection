@@ -1056,3 +1056,48 @@ table tr:hover td {
 }
 </body>
 </html>
+/* Health check page */
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.health-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.health-card.ok { border-left: 4px solid var(--success); }
+.health-card.error { border-left: 4px solid var(--error); }
+.health-card.warning { border-left: 4px solid var(--warning); }
+
+.health-icon {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.health-card.ok .health-icon { color: var(--success); }
+.health-card.error .health-icon { color: var(--error); }
+.health-card.warning .health-icon { color: var(--warning); }
+
+.health-info h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.health-info p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.last-check {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}

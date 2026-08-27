@@ -95,6 +95,13 @@
                 <label for="ldap_admin_group_dn">Admin Group DN (optional)</label>
                 <input type="text" id="ldap_admin_group_dn" name="ldap_admin_group_dn" value="{{ settings.ldap_admin_group_dn }}" placeholder="cn=music-admin,ou=groups,dc=example,dc=com">
             </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="local_fallback" {% if settings.local_fallback == 'true' %}checked{% endif %}>
+                    Allow local admin login when LDAP is unavailable
+                </label>
+                <small>If enabled, admin can always log in with local credentials when LDAP is down</small>
+            </div>
         </section>
         
         <section class="settings-section">
@@ -114,37 +121,21 @@
 
 {% block scripts %}
 <script>
-// Dirty form detection
 let isDirty = false;
 const form = document.getElementById('settings-form');
 
-form.addEventListener('input', function() {
-    isDirty = true;
-});
+form.addEventListener('input', function() { isDirty = true; });
+form.addEventListener('change', function() { isDirty = true; });
+form.addEventListener('submit', function() { isDirty = false; });
 
-form.addEventListener('change', function() {
-    isDirty = true;
-});
-
-form.addEventListener('submit', function() {
-    isDirty = false;
-});
-
-// Warn before leaving with unsaved changes
 window.addEventListener('beforeunload', function(e) {
-    if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '';
-    }
+    if (isDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// Intercept navigation links
 document.querySelectorAll('a[href]').forEach(link => {
     link.addEventListener('click', function(e) {
         if (isDirty) {
-            if (!confirm('You have unsaved changes. Leave without saving?')) {
-                e.preventDefault();
-            }
+            if (!confirm('You have unsaved changes. Leave without saving?')) { e.preventDefault(); }
         }
     });
 });
