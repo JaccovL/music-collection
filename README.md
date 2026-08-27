@@ -19,6 +19,32 @@ A web application for browsing and managing a personal music collection synced f
 - **Database Stats** — Live view of table sizes and row counts
 - **Settings Panel** — Configure Discogs token, update interval, database connection
 
+## Version History
+
+### v1.1.0 (2026-08-27)
+- **Health Checks** — MariaDB and LDAP connectivity monitoring at `/admin/health`
+- **Health API** — JSON endpoint at `/api/health` for monitoring integration
+- **Local Fallback Login** — Admin can log in when LDAP is unavailable (configurable in settings)
+- **Filter Cache** — 5-minute cache for filter options reduces database queries
+- **Settings** — Added "Allow local admin login when LDAP is unavailable" option
+- **Bug Fixes** — Fixed `get_setting()` handling of empty strings, `db_port` parsing
+
+### v1.0.1 (2026-08-26)
+- **Cosmetic** — Moved theme toggle into Settings dropdown menu
+- **Theme Display** — Shows current theme as icon+text (🌙 Dark / ☀️ Light)
+- **Sync Badge** — Moved sync status badge to right side of navbar
+- **Layout** — Cleaner navbar: `Search | Settings ▾ | username | Logout | [Sync ●]`
+
+### v1.0.0 (2026-08-26)
+- **Initial Release** — Discogs Music Collection Web App
+- Flask backend with MariaDB database
+- Search with filters (format, genre, style, country, label, year range)
+- Sortable columns, table and card views
+- Detail modal with tracklist and cover image
+- Dark/light theme toggle
+- Settings page, sync status, database statistics
+- Docker deployment ready
+
 ## Architecture
 
 | Component | Technology |
@@ -56,7 +82,7 @@ A web application for browsing and managing a personal music collection synced f
    SECRET_KEY=your-random-secret-key
    DISCOGS_TOKEN=your-discogs-token
    DISCOGS_USERNAME=your-discogs-username
-   DATABASE_URL=mysql+pymysql://music:password@db-host:3306/music_collection
+   DATABASE_URL=mysql+pymysql://music:***@db-host:3306/music_collection
    ```
 
 3. **Deploy with Docker:**
@@ -67,7 +93,7 @@ A web application for browsing and managing a personal music collection synced f
    ```bash
    docker build -t music-collection .
    docker run -d --name music-collection -p 5000:5000 \
-     -e DATABASE_URL="mysql+pymysql://music:password@db-host:3306/music_collection" \
+     -e DATABASE_URL="mysql+pymysql://music:***@db-host:3306/music_collection" \
      -e SECRET_KEY="your-secret" \
      -e DISCOGS_TOKEN="your-token" \
      -e DISCOGS_USERNAME="your-username" \
@@ -98,6 +124,7 @@ music-collection/
 ├── models.py               # SQLAlchemy models (Release, Artist, Track, User, etc.)
 ├── discogs_client.py       # Discogs API client with rate limiting
 ├── sync_service.py         # Collection & track sync logic
+├── health.py               # Health check services (MariaDB, LDAP)
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Multi-stage Docker build
 ├── docker-compose.yml      # Compose file for easy deployment
@@ -109,7 +136,8 @@ music-collection/
 │   ├── login.html          # Login page
 │   ├── admin_settings.html # Settings/configuration panel
 │   ├── admin_sync_status.html  # Sync status + triggers
-│   └── admin_db_stats.html     # Database statistics
+│   ├── admin_db_stats.html     # Database statistics
+│   └── admin_health.html       # Health check status page
 ├── static/
 │   ├── css/style.css       # All styles (dark/light theme)
 │   ├── js/app.js           # Theme toggle, dropdowns, sync polling
@@ -126,6 +154,9 @@ music-collection/
 | `/release/<id>` | GET | Release detail page |
 | `/artist/<id>` | GET | Artist detail page |
 | `/api/release-tracks/<id>` | GET | JSON tracklist for a release |
+| `/api/release-detail/<id>` | GET | JSON release detail with tracks |
+| `/api/search` | GET | JSON search (autocomplete) |
+| `/api/health` | GET | Health check (MariaDB, LDAP status) |
 | `/login` | POST | Session login |
 | `/logout` | GET | Logout |
 | `/admin/settings` | GET/POST | Configuration panel |
@@ -133,6 +164,7 @@ music-collection/
 | `/admin/sync-collection` | POST | Trigger collection sync |
 | `/admin/sync-tracks` | POST | Trigger track sync |
 | `/admin/db-stats` | GET | Database statistics |
+| `/admin/health` | GET | Health check page |
 
 ## Sync Behavior
 
