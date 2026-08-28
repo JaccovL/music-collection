@@ -25,6 +25,15 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.3.1 (2026-08-28)
+- **Settings Page** — More compact layout with reduced padding and margins
+- **Settings Page** — Discogs Username and Token fields side by side
+- **Settings Page** — Sync Schedule and Features sections moved to top
+- **Settings Page** — Wantlist toggle hides/shows Wantlist nav link and sync options
+- **Bug Fixes** — Filter box widths now explicit (100px) so they're identical on both pages
+- **Bug Fixes** — Year filter placeholders show "1900" and "2024" for clarity
+- **UI Improvements** — Help renamed to About in Settings dropdown
+
 ### v1.3.0 (2026-08-28)
 - **Wantlist** — New Wantlist page synced from Discogs wantlist
   - Browse, search, and filter your wantlist items
