@@ -20,10 +20,22 @@ A web application for browsing and managing a personal music collection synced f
 - **Local Admin Login** — Fallback login when LDAP is unavailable
 - **Health Checks** — MariaDB and LDAP connectivity monitoring
 - **Database Stats** — Modern dashboard with table sizes and visual bar chart
+- **Statistics Dashboard** — Visual breakdowns: pie/bar charts by genre, decade, format, country, label
 - **Settings Panel** — Configure Discogs token, update interval, database connection, features
 - **Search Discogs** — Search directly on Discogs.com without API key
 
 ## Version History
+
+### v1.3.2 (2026-08-28)
+- **Statistics Dashboard** — Visual breakdowns of your collection with pie/bar charts
+  - Summary cards: releases, artists, tracks, year range, avg tracks, top genre
+  - Genre chart (doughnut), Format chart (pie), Decade chart (bar)
+  - Country chart (horizontal bar), Label chart (horizontal bar)
+- **Country Backfill** — Background job to fetch country data for all releases (Discogs API)
+- **Country in Sync** — Future syncs now automatically fetch country for new releases
+- **Bug Fixes** — Year range now excludes year=0 (unknown), decade chart fixed
+- **Bug Fixes** — Pie chart labels truncated to prevent overflow
+- **API** — `/admin/statistics` page and `/admin/statistics-api/<type>` endpoint
 
 ### v1.3.1 (2026-08-28)
 - **Settings Page** — More compact layout with reduced padding and margins

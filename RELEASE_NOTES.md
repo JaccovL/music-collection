@@ -1,30 +1,45 @@
-# Release v1.3.1
+# Release v1.3.2
 
 ## What's New
 
-### Settings Page Improvements
-- **More compact layout** — Reduced padding, margins, and font sizes throughout
-- **Discogs fields side by side** — Username and Token now in a single row
-- **Reorganized sections** — Sync Schedule and Features moved to top for quick access
-- **Wantlist toggle** — Enabling/disabling Wantlist now:
-  - Shows/hides the Wantlist link in the navbar
-  - Shows/hides the Wantlist Sync section on the Sync Status page
-  - Shows/hides the wantlist sync polling JavaScript
+### Statistics Dashboard
+- **Summary Cards** — Total releases, artists, tracks, year range, avg tracks/release, top genre
+- **Genre Chart** — Doughnut chart showing releases by genre
+- **Format Chart** — Pie chart showing releases by format
+- **Decade Chart** — Bar chart showing releases by decade
+- **Country Chart** — Horizontal bar chart showing releases by country
+- **Label Chart** — Horizontal bar chart showing releases by label
+
+### Country Data
+- **Backfill Script** — Background job to fetch country data for all 4,835 releases from Discogs API
+- **Automatic Fetch** — Future syncs now automatically fetch country for new releases
+- **Year Range Fix** — Excludes year=0 (unknown) from range calculation
+- **Decade Chart Fix** — Excludes year=0 from decade grouping
 
 ### Bug Fixes
-- **Filter box widths** — All filter dropdowns now have explicit `width: 100px` so they're identical on both Collection and Wantlist pages (previously browser auto-sizing caused differences)
-- **Year filter placeholders** — Now show "1900" and "2024" instead of "From" and "To" for clarity
+- **Pie Chart Labels** — Truncated to 30 chars with ellipsis to prevent overflow
+- **Chart Card Overflow** — Added `overflow: hidden` to contain charts
 
-### UI Improvements
-- **Help → About** — Renamed the Help link in Settings dropdown to About
+### API Endpoints
+- `GET /admin/statistics` — Statistics dashboard page
+- `GET /admin/statistics-api/summary` — Summary statistics JSON
+- `GET /admin/statistics-api/genre` — Genre breakdown JSON
+- `GET /admin/statistics-api/format` — Format breakdown JSON
+- `GET /admin/statistics-api/decade` — Decade breakdown JSON
+- `GET /admin/statistics-api/country` — Country breakdown JSON
+- `GET /admin/statistics-api/label` — Label breakdown JSON
+
+### Files Added
+- `templates/admin_statistics.html` — Statistics dashboard template
+- `static/css/statistics.css` — Statistics styles
+- `backfill_country.py` — Country backfill script
 
 ### Files Modified
-- `templates/admin_settings.html` — Compact layout, reorganized sections
-- `templates/admin_sync_status.html` — Wantlist sync section hidden when disabled
-- `templates/base.html` — Wantlist nav link hidden when disabled, About link
-- `static/css/style.css` — Compact settings styles, explicit filter widths
-- `app.py` — `get_setting` registered as Jinja global
+- `app.py` — Added statistics routes and API endpoints
+- `sync_service.py` — Added country fetch for new releases
+- `templates/base.html` — Added Statistics link to Settings dropdown
+- `static/css/style.css` — Added statistics styles
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.0...v1.3.1
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.1...v1.3.2
