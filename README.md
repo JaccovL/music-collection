@@ -26,6 +26,13 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.3.4 (2026-08-29)
+- **Code Cleanup** — Optimized and cleaned the codebase
+  - Extracted reusable helpers (get_request_filters, apply_common_filters, export_to_csv, export_to_pdf)
+  - Removed duplicate filter and export logic between Collection and Wantlist
+  - Consolidated settings POST handling
+  - Reduced app.py from 1,141 to 900 lines (-21%)
+
 ### v1.3.3 (2026-08-28)
 - **Export (CSV/PDF)** — Export filtered results from Collection and Wantlist pages
   - CSV export with all relevant columns
