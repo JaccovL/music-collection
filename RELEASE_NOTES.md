@@ -2,7 +2,7 @@
 
 ## What's New
 
-### Statistics Dashboard
+### Collection Statistics Dashboard
 - **Summary Cards** — Total releases, artists, tracks, year range, avg tracks/release, top genre
 - **Genre Chart** — Doughnut chart showing releases by genre
 - **Format Chart** — Pie chart showing releases by format

@@ -20,7 +20,7 @@ A web application for browsing and managing a personal music collection synced f
 - **Local Admin Login** — Fallback login when LDAP is unavailable
 - **Health Checks** — MariaDB and LDAP connectivity monitoring
 - **Database Stats** — Modern dashboard with table sizes and visual bar chart
-- **Statistics Dashboard** — Visual breakdowns: pie/bar charts by genre, decade, format, country, label
+- **Collection Statistics** — Visual breakdowns: pie/bar charts by genre, decade, format, country, label
 - **Settings Panel** — Configure Discogs token, update interval, database connection, features
 - **Search Discogs** — Search directly on Discogs.com without API key
 
