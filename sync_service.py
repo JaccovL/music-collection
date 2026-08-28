@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from models import db, Artist, Release, Track, UpdateLog
+from models import db, Artist, Release, Track, UpdateLog, Wantlist
 from discogs_client import DiscogsClient
 
 logger = logging.getLogger(__name__)
@@ -12,12 +12,11 @@ class SyncService:
     
     def sync_collection(self, triggered_by='manual', fetch_details=False):
         """Sync all collection items from Discogs"""
-        log = UpdateLog(status='running', triggered_by=triggered_by)
+        log = UpdateLog(sync_type='collection', status='running', triggered_by=triggered_by)
         db.session.add(log)
         db.session.commit()
         
         try:
-            # Get all folders
             folders_data = self.client.get_collection_folders()
             if not folders_data:
                 raise Exception("Failed to fetch collection folders")
@@ -51,13 +50,11 @@ class SyncService:
                         elif result == 'updated':
                             total_updated += 1
                     
-                    # Check if there are more pages
                     pagination = data.get('pagination', {})
                     if page >= pagination.get('pages', 1):
                         break
                     page += 1
                     
-                    # Commit every page
                     db.session.commit()
             
             log.status = 'success'
@@ -134,7 +131,6 @@ class SyncService:
         formats = basic.get('formats', [])
         if formats:
             release.format = ', '.join(f.get('name', '') for f in formats)
-            # Get descriptions
             descriptions = []
             for f in formats:
                 desc = f.get('descriptions', [])
@@ -158,17 +154,22 @@ class SyncService:
         # Country
         release.country = basic.get('country')
         
-        # Images
+        # Images - thumb_url is always available from collection API
         release.thumb_url = basic.get('thumb')
+        
+        # cover_image_url from images array (may not exist in collection API)
         images = basic.get('images', [])
         if images:
-            # Find primary image
             for img in images:
                 if img.get('type') == 'primary':
                     release.cover_image_url = img.get('uri')
                     break
             if not release.cover_image_url:
                 release.cover_image_url = images[0].get('uri')
+        
+        # Fallback: use thumb_url as cover_image_url if no full cover available
+        if not release.cover_image_url and release.thumb_url:
+            release.cover_image_url = release.thumb_url
         
         # Date added
         if date_added:
@@ -180,6 +181,141 @@ class SyncService:
         # Fetch full release details for tracks (only if requested)
         if fetch_details:
             self._fetch_release_details(release)
+        
+        return 'added' if is_new else 'updated'
+    
+    def sync_wantlist(self, triggered_by='manual'):
+        """Sync wantlist from Discogs"""
+        log = UpdateLog(sync_type='wantlist', status='running', triggered_by=triggered_by)
+        db.session.add(log)
+        db.session.commit()
+        
+        try:
+            total_added = 0
+            total_updated = 0
+            
+            page = 1
+            while True:
+                data = self.client.get_wantlist(page=page)
+                if not data:
+                    break
+                
+                wants = data.get('wants', [])
+                if not wants:
+                    break
+                
+                for item in wants:
+                    result = self._process_wantlist_item(item)
+                    if result == 'added':
+                        total_added += 1
+                    elif result == 'updated':
+                        total_updated += 1
+                
+                pagination = data.get('pagination', {})
+                if page >= pagination.get('pages', 1):
+                    break
+                page += 1
+                
+                db.session.commit()
+            
+            log.status = 'success'
+            log.releases_added = total_added
+            log.releases_updated = total_updated
+            log.finished_at = datetime.utcnow()
+            db.session.commit()
+            
+            logger.info(f"Wantlist sync complete: {total_added} added, {total_updated} updated")
+            return {
+                'status': 'success',
+                'added': total_added,
+                'updated': total_updated
+            }
+            
+        except Exception as e:
+            logger.error(f"Wantlist sync failed: {e}")
+            log.status = 'error'
+            log.error_message = str(e)
+            log.finished_at = datetime.utcnow()
+            db.session.commit()
+            raise
+    
+    def _process_wantlist_item(self, item):
+        """Process a single wantlist item"""
+        basic = item.get('basic_information', {})
+        release_id = basic.get('id')
+        
+        # Parse artist
+        artists_data = basic.get('artists', [])
+        artist_name = artists_data[0].get('name', 'Unknown Artist') if artists_data else 'Unknown Artist'
+        artist_id = artists_data[0].get('id') if artists_data else None
+        
+        # Parse date added
+        date_added = item.get('date_added')
+        
+        # Get or create wantlist entry
+        entry = Wantlist.query.filter_by(discogs_id=release_id).first()
+        if not entry:
+            entry = Wantlist(
+                discogs_id=release_id,
+                title=basic.get('title', 'Unknown'),
+                artist_name=artist_name,
+                artist_id=artist_id
+            )
+            db.session.add(entry)
+            is_new = True
+        else:
+            is_new = False
+        
+        entry.title = basic.get('title', entry.title)
+        entry.artist_name = artist_name
+        entry.artist_id = artist_id
+        entry.year = basic.get('year')
+        
+        # Format info
+        formats = basic.get('formats', [])
+        if formats:
+            entry.format = ', '.join(f.get('name', '') for f in formats)
+            descriptions = []
+            for f in formats:
+                desc = f.get('descriptions', [])
+                if desc:
+                    descriptions.extend(desc)
+                qty = f.get('qty', '')
+                if qty:
+                    descriptions.append(f'Qty: {qty}')
+            entry.format_details = ', '.join(descriptions) if descriptions else None
+        
+        entry.genre = ', '.join(basic.get('genres', [])) if basic.get('genres') else None
+        entry.style = ', '.join(basic.get('styles', [])) if basic.get('styles') else None
+        
+        labels = basic.get('labels', [])
+        if labels:
+            entry.label = labels[0].get('name')
+            entry.catalog_number = labels[0].get('catno')
+        
+        entry.country = basic.get('country')
+        entry.thumb_url = basic.get('thumb')
+        
+        images = basic.get('images', [])
+        if images:
+            for img in images:
+                if img.get('type') == 'primary':
+                    entry.cover_image_url = img.get('uri')
+                    break
+            if not entry.cover_image_url:
+                entry.cover_image_url = images[0].get('uri')
+        
+        if not entry.cover_image_url and entry.thumb_url:
+            entry.cover_image_url = entry.thumb_url
+        
+        if date_added:
+            try:
+                entry.date_added = datetime.fromisoformat(date_added.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        entry.notes = item.get('notes')
+        entry.rating = item.get('rating')
         
         return 'added' if is_new else 'updated'
     

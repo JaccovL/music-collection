@@ -9,7 +9,7 @@ import threading
 import json
 
 from config import Config
-from models import db, User, Artist, Release, Track, UpdateLog, AppSettings
+from models import db, User, Artist, Release, Track, UpdateLog, AppSettings, Wantlist
 from sync_service import SyncService
 from discogs_client import DiscogsClient
 from health import run_health_checks, HealthStatus, _health_cache
@@ -47,7 +47,12 @@ def admin_required(f):
 
 def get_setting(key, default=None):
     s = AppSettings.query.filter_by(key=key).first()
-    return s.value if s and s.value else default
+    if s and s.value:
+        return s.value
+    return default
+
+# Make get_setting available in templates
+app.jinja_env.globals['get_setting'] = get_setting
 
 def set_setting(key, value):
     s = AppSettings.query.filter_by(key=key).first()
@@ -77,6 +82,26 @@ def get_filter_options():
     _filter_cache['ts'] = now
     return _filter_cache['data']
 
+def get_health_status():
+    """Get consolidated health status for all pages."""
+    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
+    db_port = int(get_setting('db_port', '3306') or '3306')
+    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
+    ldap_host = get_setting('ldap_host', '')
+    ldap_port = int(get_setting('ldap_port', '389') or '389')
+    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
+    ldap_bind_dn = get_setting('ldap_bind_dn', '')
+    ldap_bind_password = get_setting('ldap_bind_password', '')
+    local_fallback = get_setting('local_fallback', 'true') == 'true'
+    
+    return run_health_checks(
+        db_host=db_host, db_port=db_port,
+        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
+        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
+        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
+        local_fallback=local_fallback
+    )
+
 # ==================== AUTH ====================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -97,30 +122,11 @@ def login():
         ldap_available = False
         
         if ldap_enabled:
-            ldap_host = get_setting('ldap_host', '')
-            ldap_port = int(get_setting('ldap_port', '389'))
-            ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-            ldap_bind_dn = get_setting('ldap_bind_dn', '')
-            ldap_bind_password = get_setting('ldap_bind_password', '')
-            
-            # Check LDAP health
-            status = run_health_checks(
-                db_host=get_setting('db_host', '10.10.0.10'),
-                db_port=int(get_setting('db_port', '3306') or '3306'),
-                ldap_enabled=True,
-                ldap_host=ldap_host,
-                ldap_port=ldap_port,
-                ldap_use_ssl=ldap_use_ssl,
-                ldap_bind_dn=ldap_bind_dn,
-                ldap_bind_password=ldap_bind_password,
-                local_fallback=get_setting('local_fallback', 'true') == 'true'
-            )
-            
+            status = get_health_status()
             ldap_available = status.ldap_ok
             
             if not status.ldap_ok and status.ldap_configured:
                 logger.warning(f"LDAP unavailable: {status.ldap_error}")
-                # Check if local fallback is enabled
                 if get_setting('local_fallback', 'true') == 'true':
                     flash('LDAP unavailable — local login enabled', 'warning')
                 else:
@@ -134,7 +140,6 @@ def login():
                 return _complete_login(user)
         
         # Local admin fallback (always available)
-        # Admin can always log in with SECRET_KEY as password
         if username == 'admin' and password == app.config.get('SECRET_KEY'):
             user = User.query.filter_by(username='admin').first()
             if not user:
@@ -156,7 +161,7 @@ def _try_ldap_login(username, password):
         return None
     
     host = get_setting('ldap_host', '')
-    port = int(get_setting('ldap_port', '389'))
+    port = int(get_setting('ldap_port', '389') or '389')
     use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
     base_dn = get_setting('ldap_base_dn', '')
     bind_dn = get_setting('ldap_bind_dn', '')
@@ -252,7 +257,6 @@ def search():
     format_filter = request.args.get('format', '')
     genre_filter = request.args.get('genre', '')
     style_filter = request.args.get('style', '')
-    country_filter = request.args.get('country', '')
     label_filter = request.args.get('label', '')
     year_from = request.args.get('year_from', '')
     year_to = request.args.get('year_to', '')
@@ -265,13 +269,16 @@ def search():
     
     if query:
         search_filter = f"%{query}%"
+        q = q.outerjoin(Track, Track.release_id == Release.id)
         q = q.filter(
             db.or_(
                 Release.title.like(search_filter),
                 Artist.name.like(search_filter),
-                Release.label.like(search_filter)
+                Release.label.like(search_filter),
+                Track.title.like(search_filter)
             )
         )
+        q = q.distinct()
     
     if format_filter:
         q = q.filter(Release.format.like(f"%{format_filter}%"))
@@ -279,8 +286,6 @@ def search():
         q = q.filter(Release.genre.like(f"%{genre_filter}%"))
     if style_filter:
         q = q.filter(Release.style.like(f"%{style_filter}%"))
-    if country_filter:
-        q = q.filter(Release.country == country_filter)
     if label_filter:
         q = q.filter(Release.label.like(f"%{label_filter}%"))
     if year_from:
@@ -332,7 +337,7 @@ def search():
         pagination=pagination,
         query=query, sort=sort, order=order,
         format_filter=format_filter, genre_filter=genre_filter,
-        style_filter=style_filter, country_filter=country_filter,
+        style_filter=style_filter,
         label_filter=label_filter, year_from=year_from, year_to=year_to,
         **filter_opts
     )
@@ -382,6 +387,37 @@ def api_release_tracks(release_id):
         'position': t.position, 'title': t.title, 'duration': t.duration
     } for t in tracks])
 
+@app.route('/api/discogs-release/<int:discogs_id>')
+@login_required
+def api_discogs_release(discogs_id):
+    """Fetch release details from Discogs API (for wantlist items)"""
+    token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
+    username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
+    
+    if not token or not username:
+        return jsonify({'error': 'Discogs credentials not configured'}), 400
+    
+    client = DiscogsClient(token, username)
+    data = client.get_release(discogs_id)
+    
+    if not data:
+        return jsonify({'error': 'Failed to fetch from Discogs'}), 500
+    
+    tracks = data.get('tracklist', [])
+    
+    return jsonify({
+        'discogs_id': discogs_id,
+        'title': data.get('title', ''),
+        'year': data.get('year'),
+        'format': ', '.join(f.get('name', '') for f in data.get('formats', [])),
+        'genre': ', '.join(data.get('genres', [])),
+        'style': ', '.join(data.get('styles', [])),
+        'label': data.get('labels', [{}])[0].get('name') if data.get('labels') else None,
+        'catalog_number': data.get('labels', [{}])[0].get('catno') if data.get('labels') else None,
+        'country': data.get('country'),
+        'tracks': [{'position': t.get('position', ''), 'title': t.get('title', ''), 'duration': t.get('duration', '')} for t in tracks]
+    })
+
 @app.route('/api/release-detail/<int:release_id>')
 @login_required
 def api_release_detail(release_id):
@@ -406,25 +442,7 @@ def api_release_detail(release_id):
 @app.route('/api/health')
 @login_required
 def api_health():
-    """Health check endpoint for monitoring."""
-    db_host = get_setting('db_host', '10.10.0.10')
-    db_port = int(get_setting('db_port', '3306') or '3306')
-    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
-    ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389'))
-    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-    ldap_bind_dn = get_setting('ldap_bind_dn', '')
-    ldap_bind_password = get_setting('ldap_bind_password', '')
-    local_fallback = get_setting('local_fallback', 'true') == 'true'
-    
-    status = run_health_checks(
-        db_host=db_host, db_port=db_port,
-        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
-        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
-        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
-        local_fallback=local_fallback
-    )
-    
+    status = get_health_status()
     return jsonify(status.to_dict())
 
 # ==================== ADMIN / SETTINGS ====================
@@ -453,6 +471,7 @@ def admin_settings():
         set_setting('ldap_admin_group_dn', request.form.get('ldap_admin_group_dn', ''))
         set_setting('update_interval_hours', request.form.get('update_interval_hours', '24'))
         set_setting('local_fallback', 'true' if request.form.get('local_fallback') else 'false')
+        set_setting('wantlist_enabled', 'true' if request.form.get('wantlist_enabled') else 'false')
         
         _reschedule_sync()
         _health_cache.invalidate()
@@ -463,7 +482,7 @@ def admin_settings():
     for key in ['discogs_token', 'discogs_username', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
                 'ldap_enabled', 'ldap_host', 'ldap_port', 'ldap_use_ssl', 'ldap_base_dn', 'ldap_bind_dn',
                 'ldap_bind_password', 'ldap_user_filter', 'ldap_group_dn',
-                'ldap_admin_group_dn', 'update_interval_hours', 'local_fallback']:
+                'ldap_admin_group_dn', 'update_interval_hours', 'local_fallback', 'wantlist_enabled']:
         settings[key] = get_setting(key, '')
     
     return render_template('admin_settings.html', settings=settings)
@@ -472,15 +491,25 @@ def admin_settings():
 @login_required
 @admin_required
 def admin_sync_status():
-    sync_log = UpdateLog.query.order_by(UpdateLog.id.desc()).first()
+    sync_log = UpdateLog.query.filter_by(sync_type='collection').order_by(UpdateLog.id.desc()).first()
+    track_sync_log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
+    
     total_releases = Release.query.count()
     releases_with_tracks = db.session.query(Release.id).join(Track).distinct().count()
     total_artists = Artist.query.count()
     
+    # Format track sync finished time
+    track_sync_finished = ''
+    if track_sync_log and track_sync_log.finished_at:
+        track_sync_finished = track_sync_log.finished_at.strftime('%Y-%m-%d %H:%M')
+    
     return render_template('admin_sync_status.html',
         sync_log=sync_log, total_releases=total_releases,
         total_artists=total_artists, releases_with_tracks=releases_with_tracks,
-        releases_without_tracks=total_releases - releases_with_tracks
+        releases_without_tracks=total_releases - releases_with_tracks,
+        track_sync_status=track_sync_log.status if track_sync_log else 'never_run',
+        track_sync_finished=track_sync_finished,
+        track_sync_error=track_sync_log.error_message if track_sync_log else None
     )
 
 @app.route('/admin/db-stats')
@@ -507,25 +536,7 @@ def admin_db_stats():
 @login_required
 @admin_required
 def admin_health():
-    """Health check page."""
-    db_host = get_setting('db_host', '10.10.0.10')
-    db_port = int(get_setting('db_port', '3306') or '3306')
-    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
-    ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389'))
-    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-    ldap_bind_dn = get_setting('ldap_bind_dn', '')
-    ldap_bind_password = get_setting('ldap_bind_password', '')
-    local_fallback = get_setting('local_fallback', 'true') == 'true'
-    
-    status = run_health_checks(
-        db_host=db_host, db_port=db_port,
-        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
-        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
-        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
-        local_fallback=local_fallback
-    )
-    
+    status = get_health_status()
     return render_template('admin_health.html', status=status)
 
 @app.route('/admin/sync', methods=['POST'])
@@ -554,6 +565,11 @@ def trigger_sync():
 @login_required
 @admin_required
 def trigger_track_sync():
+    # Create update_log entry for track sync
+    log = UpdateLog(sync_type='track', status='running', triggered_by='manual')
+    db.session.add(log)
+    db.session.commit()
+    
     def do_track_sync(app_instance):
         with app_instance.app_context():
             try:
@@ -589,35 +605,224 @@ def trigger_track_sync():
                     except Exception as e:
                         logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
                         db.session.rollback()
+                
+                # Update log on completion
+                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+                if log_entry:
+                    log_entry.status = 'success'
+                    log_entry.finished_at = datetime.utcnow()
+                    db.session.commit()
+                
                 logger.info("Track sync complete")
             except Exception as e:
                 logging.error(f"Track sync failed: {e}")
+                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+                if log_entry:
+                    log_entry.status = 'error'
+                    log_entry.error_message = str(e)
+                    log_entry.finished_at = datetime.utcnow()
+                    db.session.commit()
     
     thread = threading.Thread(target=do_track_sync, args=(app,))
     thread.start()
     return jsonify({'status': 'started'})
 
+@app.route('/admin/sync-wantlist', methods=['POST'])
+@login_required
+@admin_required
+def trigger_wantlist_sync():
+    token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
+    username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
+    
+    if not token or not username:
+        return jsonify({'error': 'Discogs credentials not configured'}), 400
+    
+    def do_wantlist_sync(app_instance):
+        with app_instance.app_context():
+            try:
+                service = SyncService(token, username)
+                service.sync_wantlist(triggered_by='manual')
+            except Exception as e:
+                logging.error(f"Background wantlist sync failed: {e}")
+    
+    thread = threading.Thread(target=do_wantlist_sync, args=(app,))
+    thread.start()
+    return jsonify({'status': 'started'})
+
+@app.route('/admin/sync-wantlist-status')
+@login_required
+@admin_required
+def wantlist_sync_status():
+    log = UpdateLog.query.filter_by(sync_type='wantlist').order_by(UpdateLog.id.desc()).first()
+    total_wants = Wantlist.query.count()
+    
+    if not log:
+        return jsonify({
+            'status': 'never_run',
+            'total_wants': total_wants,
+            'finished_at': None,
+            'error_message': None
+        })
+    
+    return jsonify({
+        'status': log.status,
+        'total_wants': total_wants,
+        'added': log.releases_added,
+        'updated': log.releases_updated,
+        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'error_message': log.error_message
+    })
+
+@app.route('/wantlist')
+@login_required
+def wantlist():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 48, type=int)
+    search = request.args.get('q', '').strip()
+    format_filter = request.args.get('format', '').strip()
+    genre_filter = request.args.get('genre', '').strip()
+    style_filter = request.args.get('style', '').strip()
+    label_filter = request.args.get('label', '').strip()
+    year_from = request.args.get('year_from', '').strip()
+    year_to = request.args.get('year_to', '').strip()
+    
+    q = Wantlist.query
+    
+    if search:
+        search_filter = f"%{search}%"
+        q = q.filter(
+            db.or_(
+                Wantlist.title.like(search_filter),
+                Wantlist.artist_name.like(search_filter),
+                Wantlist.label.like(search_filter)
+            )
+        )
+    
+    if format_filter:
+        q = q.filter(Wantlist.format.like(f"%{format_filter}%"))
+    if genre_filter:
+        q = q.filter(Wantlist.genre.like(f"%{genre_filter}%"))
+    if style_filter:
+        q = q.filter(Wantlist.style.like(f"%{style_filter}%"))
+    if label_filter:
+        q = q.filter(Wantlist.label.like(f"%{label_filter}%"))
+    if year_from:
+        q = q.filter(Wantlist.year >= int(year_from))
+    if year_to:
+        q = q.filter(Wantlist.year <= int(year_to))
+    
+    total = q.count()
+    pages = (total + per_page - 1) // per_page
+    
+    items_raw = q.order_by(Wantlist.date_added.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    
+    items = []
+    for item in items_raw:
+        items.append({
+            'id': item.id,
+            'discogs_id': item.discogs_id,
+            'title': item.title,
+            'artist': item.artist_name,
+            'year': item.year,
+            'format': item.format,
+            'genre': item.genre,
+            'style': item.style,
+            'label': item.label,
+            'catalog_number': item.catalog_number,
+            'country': item.country,
+            'thumb': item.thumb_url,
+            'cover_image_url': item.cover_image_url,
+            'date_added': item.date_added.strftime('%Y-%m-%d') if item.date_added else '',
+            'notes': item.notes,
+            'rating': item.rating
+        })
+    
+    # Get filter options from wantlist data
+    formats = list(set(i.format for i in Wantlist.query.all() if i.format))
+    formats.sort()
+    genres = list(set(i.genre for i in Wantlist.query.all() if i.genre))
+    genres.sort()
+    styles = list(set(i.style for i in Wantlist.query.all() if i.style))
+    styles.sort()
+    labels = list(set(i.label for i in Wantlist.query.all() if i.label))
+    labels.sort()
+    
+    return render_template('wantlist.html',
+        items_json=json.dumps(items),
+        items=items_raw,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+        total=total,
+        search=search,
+        format_filter=format_filter,
+        genre_filter=genre_filter,
+        style_filter=style_filter,
+        label_filter=label_filter,
+        year_from=year_from,
+        year_to=year_to,
+        formats=formats,
+        genres=genres,
+        styles=styles,
+        labels=labels
+    )
+
+@app.route('/wantlist/<int:item_id>')
+@login_required
+def wantlist_detail(item_id):
+    item = Wantlist.query.get_or_404(item_id)
+    return render_template('wantlist_detail.html', item=item)
+
 @app.route('/admin/sync-tracks-status')
 @login_required
 @admin_required
 def track_sync_status():
+    log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
     total_releases = Release.query.count()
     releases_with_tracks = db.session.query(Release.id).join(Track).distinct().count()
+    
+    if not log:
+        return jsonify({
+            'status': 'never_run',
+            'total_releases': total_releases,
+            'releases_with_tracks': releases_with_tracks,
+            'releases_without_tracks': total_releases - releases_with_tracks,
+            'finished_at': None,
+            'error_message': None
+        })
+    
     return jsonify({
+        'status': log.status,
         'total_releases': total_releases,
         'releases_with_tracks': releases_with_tracks,
-        'releases_without_tracks': total_releases - releases_with_tracks
+        'releases_without_tracks': total_releases - releases_with_tracks,
+        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'error_message': log.error_message
     })
 
 @app.route('/admin/sync-status')
 @login_required
 @admin_required
 def sync_status():
-    log = UpdateLog.query.order_by(UpdateLog.id.desc()).first()
+    """Combined sync status - returns the most recent activity from either collection or track sync."""
+    coll_log = UpdateLog.query.filter_by(sync_type='collection').order_by(UpdateLog.id.desc()).first()
+    track_log = UpdateLog.query.filter_by(sync_type='track').order_by(UpdateLog.id.desc()).first()
+    
+    # Use the most recent of the two
+    log = None
+    if coll_log and track_log:
+        log = coll_log if coll_log.started_at >= track_log.started_at else track_log
+    elif coll_log:
+        log = coll_log
+    elif track_log:
+        log = track_log
+    
     if not log:
         return jsonify({'status': 'never_run'})
+    
     return jsonify({
         'status': log.status,
+        'sync_type': log.sync_type,
         'started_at': log.started_at.isoformat() if log.started_at else None,
         'finished_at': log.finished_at.isoformat() if log.finished_at else None,
         'releases_added': log.releases_added,
@@ -643,7 +848,7 @@ def _scheduled_sync():
 def _reschedule_sync():
     """Reschedule the sync job based on current settings"""
     try:
-        interval = int(get_setting('update_interval_hours', '24'))
+        interval = int(get_setting('update_interval_hours', '24') or '24')
         if 'sync_job' in scheduler._jobstore:
             scheduler.remove_job('sync_job')
         scheduler.add_job(_scheduled_sync, 'interval', hours=interval, id='sync_job')
@@ -654,7 +859,7 @@ def start_scheduler():
     """Start the scheduler"""
     with app.app_context():
         try:
-            interval = int(get_setting('update_interval_hours', '24'))
+            interval = int(get_setting('update_interval_hours', '24') or '24')
             scheduler.add_job(_scheduled_sync, 'interval', hours=interval, id='sync_job', replace_existing=True)
             scheduler.start()
             logger.info("Scheduler started")

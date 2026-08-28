@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.artist_name }} - {{ item.title }}{% endblock %}
+
+{% block content %}
+<div class="detail-page">
+    <div class="detail-header">
+        <a href="{{ url_for('wantlist') }}" class="btn btn-sm">← Back to Wantlist</a>
+    </div>
+
+    <div class="detail-content">
+        <div class="detail-cover">
+            {% if item.cover_image_url %}
+            <img src="{{ item.cover_image_url }}" alt="Cover" class="detail-cover-image">
+            {% elif item.thumb_url %}
+            <img src="{{ item.thumb_url }}" alt="Cover" class="detail-cover-image">
+            {% else %}
+            <div class="no-cover-large">🎵</div>
+            {% endif %}
+        </div>
+
+        <div class="detail-info">
+            <h1>{{ item.title }}</h1>
+            <h2>{{ item.artist_name }}</h2>
+
+            <div class="detail-meta">
+                {% if item.year %}
+                <div class="meta-row">
+                    <span class="meta-label">Year</span>
+                    <span class="meta-value">{{ item.year }}</span>
+                </div>
+                {% endif %}
+                {% if item.format %}
+                <div class="meta-row">
+                    <span class="meta-label">Format</span>
+                    <span class="meta-value">{{ item.format }}</span>
+                </div>
+                {% endif %}
+                {% if item.label %}
+                <div class="meta-row">
+                    <span class="meta-label">Label</span>
+                    <span class="meta-value">{{ item.label }}</span>
+                </div>
+                {% endif %}
+                {% if item.catalog_number %}
+                <div class="meta-row">
+                    <span class="meta-label">Catalog #</span>
+                    <span class="meta-value">{{ item.catalog_number }}</span>
+                </div>
+                {% endif %}
+                {% if item.country %}
+                <div class="meta-row">
+                    <span class="meta-label">Country</span>
+                    <span class="meta-value">{{ item.country }}</span>
+                </div>
+                {% endif %}
+                {% if item.genre %}
+                <div class="meta-row">
+                    <span class="meta-label">Genre</span>
+                    <span class="meta-value">{{ item.genre }}</span>
+                </div>
+                {% endif %}
+                {% if item.style %}
+                <div class="meta-row">
+                    <span class="meta-label">Style</span>
+                    <span class="meta-value">{{ item.style }}</span>
+                </div>
+                {% endif %}
+                {% if item.rating %}
+                <div class="meta-row">
+                    <span class="meta-label">Rating</span>
+                    <span class="meta-value rating-stars">
+                        {% for i in range(item.rating) %}★{% endfor %}
+                        {% for i in range(5 - item.rating) %}☆{% endfor %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if item.date_added %}
+                <div class="meta-row">
+                    <span class="meta-label">Date Added</span>
+                    <span class="meta-value">{{ item.date_added.strftime('%Y-%m-%d') }}</span>
+                </div>
+                {% endif %}
+                {% if item.notes %}
+                <div class="meta-row">
+                    <span class="meta-label">Notes</span>
+                    <span class="meta-value">{{ item.notes }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="detail-actions">
+                <a href="https://www.discogs.com/release/{{ item.discogs_id }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">View on Discogs</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

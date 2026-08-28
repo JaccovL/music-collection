@@ -31,7 +31,7 @@ document.addEventListener('click', function(e) {
 
 // Sync status polling for navbar badge
 function updateSyncBadge() {
-    fetch('/admin/sync-status')
+    fetch('/admin/sync-status-api')
         .then(r => r.json())
         .then(data => {
             const dot = document.getElementById('sync-dot');

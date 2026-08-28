@@ -77,3 +77,10 @@ class DiscogsClient:
             f"{DISCOGS_API}/artists/{artist_id}/releases",
             params={'page': page, 'per_page': per_page}
         )
+    
+    def get_wantlist(self, page=1, per_page=100):
+        """Fetch wantlist items from Discogs"""
+        return self._request(
+            f"{DISCOGS_API}/users/{self.username}/wants",
+            params={'page': page, 'per_page': per_page}
+        )
