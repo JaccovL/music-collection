@@ -7,7 +7,7 @@
     <!-- Search bar -->
     <div class="search-bar">
         <div class="search-row">
-            <input type="text" id="global-search" placeholder="Search by title, artist, label, genre, style..." class="search-input" value="{{ query }}">
+            <input type="text" id="global-search" placeholder="Search by title, artist, label, genre, style..." class="search-input" value="{{ query }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <a href="{{ url_for('search') }}" class="btn btn-sm">Reset</a>
         </div>
@@ -367,9 +367,12 @@ function applyFilters() {
 }
 
 // Allow Enter key in goto input
-document.getElementById('goto-page').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') gotoPage();
-});
+const gotoPageInput = document.getElementById('goto-page');
+if (gotoPageInput) {
+    gotoPageInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') gotoPage();
+    });
+}
 
 // Initial render
 renderTable();
