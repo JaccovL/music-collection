@@ -15,7 +15,7 @@ Runs in Docker on the Docker host (192.168.178.98), backed by MariaDB on 10.10.0
 
 - **URL:** http://192.168.178.98:5000
 - **Source:** `/opt/data/code-server/workspace/music-collection/`
-- **GitHub:** https://github.com/JaccovL/music-collection (v1.3.2)
+- **GitHub:** https://github.com/JaccovL/music-collection (v1.3.3)
 - **Container:** `music-collection` (persistent, no --rm, TZ=Europe/Amsterdam)
 
 ## Architecture

@@ -1,6 +1,12 @@
-# Release v1.3.2
+# Release v1.3.3
 
 ## What's New
+
+### Export (CSV/PDF)
+- **CSV Export** — Download filtered results as CSV (Excel-compatible)
+- **PDF Export** — Download filtered results as formatted PDF (portrait, ~50 rows/page)
+- **Collection & Wantlist** — Both pages support export with current filters
+- **Filtered Export** — Only exports what you see (respects search, filters, year range)
 
 ### Collection Statistics Dashboard
 - **Summary Cards** — Total releases, artists, tracks, year range, avg tracks/release, top genre
@@ -11,35 +17,21 @@
 - **Label Chart** — Horizontal bar chart showing releases by label
 
 ### Country Data
-- **Backfill Script** — Background job to fetch country data for all 4,835 releases from Discogs API
+- **Backfill Script** — Background job to fetch country data for all releases from Discogs API
 - **Automatic Fetch** — Future syncs now automatically fetch country for new releases
-- **Year Range Fix** — Excludes year=0 (unknown) from range calculation
-- **Decade Chart Fix** — Excludes year=0 from decade grouping
 
 ### Bug Fixes
+- **Year Range** — Excludes year=0 (unknown) from range calculation
+- **Decade Chart** — Excludes year=0 from decade grouping
 - **Pie Chart Labels** — Truncated to 30 chars with ellipsis to prevent overflow
 - **Chart Card Overflow** — Added `overflow: hidden` to contain charts
 
 ### API Endpoints
 - `GET /admin/statistics` — Statistics dashboard page
-- `GET /admin/statistics-api/summary` — Summary statistics JSON
-- `GET /admin/statistics-api/genre` — Genre breakdown JSON
-- `GET /admin/statistics-api/format` — Format breakdown JSON
-- `GET /admin/statistics-api/decade` — Decade breakdown JSON
-- `GET /admin/statistics-api/country` — Country breakdown JSON
-- `GET /admin/statistics-api/label` — Label breakdown JSON
-
-### Files Added
-- `templates/admin_statistics.html` — Statistics dashboard template
-- `static/css/statistics.css` — Statistics styles
-- `backfill_country.py` — Country backfill script
-
-### Files Modified
-- `app.py` — Added statistics routes and API endpoints
-- `sync_service.py` — Added country fetch for new releases
-- `templates/base.html` — Added Statistics link to Settings dropdown
-- `static/css/style.css` — Added statistics styles
+- `GET /admin/statistics-api/<type>` — Chart data JSON (summary, genre, format, decade, country, label)
+- `GET /export/csv` — CSV export
+- `GET /export/pdf` — PDF export
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.1...v1.3.2
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.2...v1.3.3

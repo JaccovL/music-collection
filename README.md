@@ -26,6 +26,18 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.3.3 (2026-08-28)
+- **Export (CSV/PDF)** — Export filtered results from Collection and Wantlist pages
+  - CSV export with all relevant columns
+  - PDF export in portrait format, ~50 rows per page
+  - Great for insurance, sharing, or offline reference
+- **Collection Statistics** — Renamed from "Statistics" in menu and docs
+- **Country Backfill** — Background job to fetch country data for all releases
+- **Country in Sync** — Future syncs automatically fetch country for new releases
+- **Bug Fixes** — Year range excludes year=0 (unknown), decade chart fixed
+- **Bug Fixes** — Pie chart labels truncated to prevent overflow
+- **API** — `/export/csv` and `/export/pdf` endpoints
+
 ### v1.3.2 (2026-08-28)
 - **Statistics Dashboard** — Visual breakdowns of your collection with pie/bar charts
   - Summary cards: releases, artists, tracks, year range, avg tracks, top genre
