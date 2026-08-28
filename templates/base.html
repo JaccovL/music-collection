@@ -10,7 +10,10 @@
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="nav-brand">🎵 Music Collection</a>
+            <a href="{{ url_for('index') }}" class="nav-brand">
+                <img src="{{ url_for('static', filename='favicon.svg') }}" alt="Music Collection" class="nav-icon">
+                Music Collection
+            </a>
             <div class="nav-links">
                 <a href="{{ url_for('search') }}">Search</a>
                 {% if current_user.is_admin %}
@@ -25,6 +28,7 @@
                         <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
                         <a href="{{ url_for('admin_health') }}">Health Check</a>
                         <a href="#" class="theme-toggle" id="theme-toggle" onclick="toggleTheme(); return false;">🌙 Dark</a>
+                        <a href="https://github.com/JaccovL/music-collection#version-history" target="_blank" rel="noopener noreferrer">Help</a>
                     </div>
                 </div>
                 {% endif %}

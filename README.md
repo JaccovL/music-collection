@@ -7,7 +7,7 @@ A web application for browsing and managing a personal music collection synced f
 - **Collection Sync** — Import your Discogs collection (releases, artists, tracks) via Discogs API
 - **Daily Auto-Update** — Scheduler pulls new additions automatically every 24 hours (configurable)
 - **Manual Sync** — Trigger sync from the web UI anytime
-- **Full-Text Search** — Search across titles, artists, labels, catalog numbers
+- **Full-Text Search** — Search across titles, artists, labels, and track titles
 - **Advanced Filters** — Filter by Format, Genre, Style, Country, Label, Year range
 - **Sortable Columns** — Click any column header to sort
 - **Dual Views** — Table view (spreadsheet-like) or Card view (grid of covers)
@@ -19,38 +19,41 @@ A web application for browsing and managing a personal music collection synced f
 - **Health Checks** — MariaDB and LDAP connectivity monitoring
 - **Database Stats** — Modern dashboard with table sizes and visual bar chart
 - **Settings Panel** — Configure Discogs token, update interval, database connection
+- **Search Discogs** — Search directly on Discogs.com without API key
 
 ## Version History
 
+### v1.2.3 (2026-08-28)
+- **Code Optimization** — Refactored app.py to reduce duplication (get_health_status helper)
+- **Help Button** — Added Help link in Settings dropdown to GitHub release notes
+- **Bug Fixes** — Fixed Reset button alignment, search rendering on single page
+- **Documentation** — Added database setup instructions, size estimates, password change guide
+- **Security** — Added .gitignore, removed __pycache__, placeholder token in .env.example
+
+### v1.2.2 (2026-08-28)
+- **Search Discogs** — New button to search directly on Discogs.com (no API key needed)
+- **Enter Key Support** — Press Enter in search bar to trigger search
+- **Track Title Search** — Search now includes track titles
+
+### v1.2.1 (2026-08-28)
+- **Search Rendering Fix** — Fixed JS error preventing table from rendering
+- **Cosmetic** — Reset button aligned with other buttons
+
 ### v1.2.0 (2026-08-28)
-- **Health Checks** — MariaDB and LDAP connectivity monitoring at `/admin/health`
-- **Health API** — JSON endpoint at `/api/health` for monitoring integration
-- **Local Admin Login** — Fallback login when LDAP is unavailable (configurable)
-- **Database Statistics** — Modern dashboard redesign with visual bar chart
-- **Track Sync** — Now mirrors Collection Sync with status, timestamp, and UpdateLog entries
-- **Cover Image** — Shows in detail modal (with thumb fallback for older releases)
-- **Settings** — Dropdown reordered (Configuration first), "Local Admin Login" renamed from "Local Fallback"
-- **Bug Fixes** — Table overflow handling, CSS restoration, route conflict fix
-- **Timezone** — Container runs on Europe/Amsterdam
+- **Health Checks** — MariaDB and LDAP connectivity monitoring
+- **Database Statistics** — Modern dashboard redesign
+- **Track Sync** — Mirrors Collection Sync with status and timestamp
+- **Cover Image** — Shows in detail modal with thumb fallback
+- **Local Admin Login** — Configurable fallback when LDAP unavailable
 
 ### v1.1.0 (2026-08-27)
-- **Health Checks** — Initial MariaDB and LDAP monitoring
-- **Filter Cache** — 5-minute cache for filter options reduces database queries
-- **Settings** — Added "Allow local admin login when LDAP is unavailable" option
+- **Filter Cache** — 5-minute cache for filter options
 
 ### v1.0.1 (2026-08-26)
-- **Cosmetic** — Moved theme toggle into Settings dropdown menu
-- **Theme Display** — Shows current theme as icon+text (🌙 Dark / ☀️ Light)
-- **Sync Badge** — Moved sync status badge to right side of navbar
+- **Cosmetic** — Theme toggle in dropdown, sync badge right aligned
 
 ### v1.0.0 (2026-08-26)
-- **Initial Release** — Discogs Music Collection Web App
-- Flask backend with MariaDB database
-- Search with filters, sortable columns, table and card views
-- Detail modal with tracklist and cover image
-- Dark/light theme toggle
-- Settings page, sync status, database statistics
-- Docker deployment ready
+- **Initial Release** — Flask + MariaDB + Discogs API
 
 ## Architecture
 
@@ -112,6 +115,32 @@ A web application for browsing and managing a personal music collection synced f
    - Open http://localhost:5000
    - Default login: `admin` / `test-key` (change immediately!)
 
+### Changing the Default Admin Password
+
+The default admin password is set via the `SECRET_KEY` environment variable. The admin user logs in with username `admin` and the `SECRET_KEY` as password.
+
+**To change the password:**
+
+1. **Via Docker environment variable:**
+   ```bash
+   docker stop music-collection
+   docker rm music-collection
+   docker run -d --name music-collection -p 5000:5000 \
+     -e SECRET_KEY="your-new-secure-password" \
+     -e DATABASE_URL="mysql+pymysql://music:***@db-host:3306/music_collection" \
+     -e DISCOGS_TOKEN="your-token" \
+     -e DISCOGS_USERNAME="your-username" \
+     music-collection:latest
+   ```
+
+2. **Via .env file:**
+   ```
+   SECRET_KEY=your-new-secure-password
+   ```
+   Then restart: `docker restart music-collection`
+
+> **Important:** Choose a strong, random string as your SECRET_KEY. It serves both as the Flask session encryption key and as the admin password.
+
 ### Database Setup
 
 ```sql
@@ -122,6 +151,18 @@ FLUSH PRIVILEGES;
 ```
 
 Tables are auto-created on first run.
+
+### Database Size Estimates
+
+| Collection Size | Releases | Artists | Tracks | Est. DB Size |
+|-----------------|----------|---------|--------|--------------|
+| Small           | 1,000    | 500     | 7,000  | ~2 MB        |
+| Medium          | 5,000    | 2,500   | 35,000 | ~9 MB        |
+| Large           | 10,000   | 5,000   | 70,000 | ~18 MB       |
+| Very Large      | 50,000   | 25,000  | 350,000| ~90 MB       |
+| Huge            | 100,000  | 50,000  | 700,000| ~180 MB      |
+
+> **Note:** Images are stored as URLs (text), not binary files. Actual image data remains on Discogs' CDN.
 
 ## Project Structure
 
@@ -189,7 +230,7 @@ All settings configurable via `.env` or the web UI:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECRET_KEY` | random | Flask session encryption key |
+| `SECRET_KEY` | random | Flask session encryption key AND admin password |
 | `DISCOGS_TOKEN` | — | Discogs API token |
 | `DISCOGS_USERNAME` | — | Your Discogs username |
 | `DATABASE_URL` | sqlite | MariaDB connection string |

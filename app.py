@@ -28,8 +28,9 @@ login_manager.login_view = 'login'
 
 scheduler = BackgroundScheduler()
 
+# In-memory cache for filter options (refreshed every 5 min)
 _filter_cache = {'ts': 0, 'data': {}}
-FILTER_CACHE_TTL = 300
+FILTER_CACHE_TTL = 300  # seconds
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -60,6 +61,7 @@ def set_setting(key, value):
     db.session.commit()
 
 def get_filter_options():
+    """Get filter options with caching."""
     now = datetime.utcnow().timestamp()
     if now - _filter_cache['ts'] < FILTER_CACHE_TTL:
         return _filter_cache['data']
@@ -77,6 +79,26 @@ def get_filter_options():
     _filter_cache['ts'] = now
     return _filter_cache['data']
 
+def get_health_status():
+    """Get consolidated health status for all pages."""
+    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
+    db_port = int(get_setting('db_port', '3306') or '3306')
+    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
+    ldap_host = get_setting('ldap_host', '')
+    ldap_port = int(get_setting('ldap_port', '389') or '389')
+    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
+    ldap_bind_dn = get_setting('ldap_bind_dn', '')
+    ldap_bind_password = get_setting('ldap_bind_password', '')
+    local_fallback = get_setting('local_fallback', 'true') == 'true'
+    
+    return run_health_checks(
+        db_host=db_host, db_port=db_port,
+        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
+        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
+        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
+        local_fallback=local_fallback
+    )
+
 # ==================== AUTH ====================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -92,28 +114,12 @@ def login():
             flash('Username and password required', 'error')
             return render_template('login.html')
         
+        # Check LDAP availability if configured
         ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
         ldap_available = False
         
         if ldap_enabled:
-            ldap_host = get_setting('ldap_host', '')
-            ldap_port = int(get_setting('ldap_port', '389') or '389')
-            ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-            ldap_bind_dn = get_setting('ldap_bind_dn', '')
-            ldap_bind_password = get_setting('ldap_bind_password', '')
-            
-            status = run_health_checks(
-                db_host=get_setting('db_host', '10.10.0.10') or '10.10.0.10',
-                db_port=int(get_setting('db_port', '3306') or '3306'),
-                ldap_enabled=True,
-                ldap_host=ldap_host,
-                ldap_port=ldap_port,
-                ldap_use_ssl=ldap_use_ssl,
-                ldap_bind_dn=ldap_bind_dn,
-                ldap_bind_password=ldap_bind_password,
-                local_fallback=get_setting('local_fallback', 'true') == 'true'
-            )
-            
+            status = get_health_status()
             ldap_available = status.ldap_ok
             
             if not status.ldap_ok and status.ldap_configured:
@@ -124,11 +130,13 @@ def login():
                     flash('LDAP unavailable and local fallback disabled', 'error')
                     return render_template('login.html')
         
+        # Try LDAP first if enabled and available
         if ldap_enabled and ldap_available:
             user = _try_ldap_login(username, password)
             if user:
                 return _complete_login(user)
         
+        # Local admin fallback (always available)
         if username == 'admin' and password == app.config.get('SECRET_KEY'):
             user = User.query.filter_by(username='admin').first()
             if not user:
@@ -142,6 +150,7 @@ def login():
     return render_template('login.html')
 
 def _try_ldap_login(username, password):
+    """Attempt LDAP authentication"""
     try:
         import ldap
     except ImportError:
@@ -253,17 +262,21 @@ def search():
     per_page = request.args.get('per_page', 48, type=int)
     per_page = min(max(per_page, 1), 500)
     
+    # Build query with joined artist to avoid N+1
     q = Release.query.options(db.joinedload(Release.artist))
     
     if query:
         search_filter = f"%{query}%"
+        q = q.outerjoin(Track, Track.release_id == Release.id)
         q = q.filter(
             db.or_(
                 Release.title.like(search_filter),
                 Artist.name.like(search_filter),
-                Release.label.like(search_filter)
+                Release.label.like(search_filter),
+                Track.title.like(search_filter)
             )
         )
+        q = q.distinct()
     
     if format_filter:
         q = q.filter(Release.format.like(f"%{format_filter}%"))
@@ -298,8 +311,10 @@ def search():
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     releases = pagination.items
     
+    # Get cached filter options
     filter_opts = get_filter_options()
     
+    # Serialize releases for JavaScript
     releases_json = json.dumps([{
         'id': r.id,
         'title': r.title,
@@ -396,24 +411,7 @@ def api_release_detail(release_id):
 @app.route('/api/health')
 @login_required
 def api_health():
-    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
-    db_port = int(get_setting('db_port', '3306') or '3306')
-    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
-    ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389') or '389')
-    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-    ldap_bind_dn = get_setting('ldap_bind_dn', '')
-    ldap_bind_password = get_setting('ldap_bind_password', '')
-    local_fallback = get_setting('local_fallback', 'true') == 'true'
-    
-    status = run_health_checks(
-        db_host=db_host, db_port=db_port,
-        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
-        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
-        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
-        local_fallback=local_fallback
-    )
-    
+    status = get_health_status()
     return jsonify(status.to_dict())
 
 # ==================== ADMIN / SETTINGS ====================
@@ -506,24 +504,7 @@ def admin_db_stats():
 @login_required
 @admin_required
 def admin_health():
-    db_host = get_setting('db_host', '10.10.0.10') or '10.10.0.10'
-    db_port = int(get_setting('db_port', '3306') or '3306')
-    ldap_enabled = get_setting('ldap_enabled', 'false') == 'true'
-    ldap_host = get_setting('ldap_host', '')
-    ldap_port = int(get_setting('ldap_port', '389') or '389')
-    ldap_use_ssl = get_setting('ldap_use_ssl', 'false') == 'true'
-    ldap_bind_dn = get_setting('ldap_bind_dn', '')
-    ldap_bind_password = get_setting('ldap_bind_password', '')
-    local_fallback = get_setting('local_fallback', 'true') == 'true'
-    
-    status = run_health_checks(
-        db_host=db_host, db_port=db_port,
-        ldap_enabled=ldap_enabled, ldap_host=ldap_host,
-        ldap_port=ldap_port, ldap_use_ssl=ldap_use_ssl,
-        ldap_bind_dn=ldap_bind_dn, ldap_bind_password=ldap_bind_password,
-        local_fallback=local_fallback
-    )
-    
+    status = get_health_status()
     return render_template('admin_health.html', status=status)
 
 @app.route('/admin/sync', methods=['POST'])
@@ -641,7 +622,7 @@ def track_sync_status():
         'error_message': log.error_message
     })
 
-@app.route('/admin/sync-status-api')
+@app.route('/admin/sync-status')
 @login_required
 @admin_required
 def sync_status():
@@ -675,6 +656,7 @@ def sync_status():
 # ==================== SCHEDULER ====================
 
 def _scheduled_sync():
+    """Background sync job"""
     with app.app_context():
         token = get_setting('discogs_token', '')
         username = get_setting('discogs_username', '')
@@ -686,6 +668,7 @@ def _scheduled_sync():
                 logger.error(f"Scheduled sync failed: {e}")
 
 def _reschedule_sync():
+    """Reschedule the sync job based on current settings"""
     try:
         interval = int(get_setting('update_interval_hours', '24') or '24')
         if 'sync_job' in scheduler._jobstore:
@@ -695,6 +678,7 @@ def _reschedule_sync():
         logger.error(f"Failed to reschedule: {e}")
 
 def start_scheduler():
+    """Start the scheduler"""
     with app.app_context():
         try:
             interval = int(get_setting('update_interval_hours', '24') or '24')
