@@ -1,17 +1,15 @@
-# Release v1.5.2
+# Release v1.5.3
 
 ## What's New
 
 ### Bug Fixes
-- **Fixed Sync All button** — Was using `threading.Thread` directly without app context, causing database errors. Now uses `_run_in_background()` helper.
-- **Removed Quick Add button** — Discogs is the leading source for what's in the collection; manual additions are not desired.
+- **Fixed Random Release button** — The button called `showDetail()` which only looked for releases in the current page's array. Since the random release is unlikely to be on the current page, nothing happened. Now `showDetail()` fetches from the API when the release isn't found locally.
 
 ### Files Modified
-- `app.py` — Fixed sync_all to use `_run_in_background()`, removed quick_add route
-- `templates/search.html` — Removed Quick Add button and modal
+- `templates/search.html` — Fixed showDetail() to handle releases not on current page
 - `README.md` — Version history
 - `RELEASE_NOTES.md` — This file
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.5.1...v1.5.2
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.5.2...v1.5.3

@@ -256,7 +256,51 @@ function renderCards() {
 function showDetail(releaseId) {
     if (releaseId.target) return;
     const release = releases.find(r => r.id === releaseId);
-    if (!release) return;
+    if (!release) {
+        // Release not on current page (e.g. from Random button) — fetch from API
+        fetch(`/api/release-detail/${releaseId}`)
+            .then(r => r.json())
+            .then(data => {
+                const modal = document.getElementById('detail-modal');
+                const title = document.getElementById('modal-title');
+                const body = document.getElementById('modal-body');
+                
+                title.textContent = `${data.artist} - ${data.title}`;
+                
+                const fields = [
+                    ['Discogs ID', data.discogs_id],
+                    ['Year', data.year],
+                    ['Format', shortFormat(data.format, data.format_details)],
+                    ['Style', data.style],
+                    ['Label', data.label],
+                    ['Date Added', data.date_added],
+                    ['Notes', data.notes]
+                ];
+                
+                let html = '';
+                const coverUrl = data.cover_image_url || data.thumb_url;
+                if (coverUrl) {
+                    html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
+                }
+                html += '<div class="modal-details">';
+                fields.forEach(([label, value]) => {
+                    html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
+                });
+                html += '</div>';
+                
+                if (data.tracks && data.tracks.length > 0) {
+                    html += '<h3>Tracklist</h3><table class="modal-tracks">';
+                    data.tracks.forEach(t => {
+                        html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
+                    });
+                    html += '</table>';
+                }
+                
+                body.innerHTML = html;
+                modal.classList.add('open');
+            });
+        return;
+    }
     
     fetch(`/api/release-detail/${releaseId}`)
         .then(r => r.json())
@@ -337,7 +381,8 @@ function randomRelease() {
             } else {
                 showDetail(data.id);
             }
-        });
+        })
+        .catch(err => alert('Failed to get random release: ' + err));
 }
 
 // Search Discogs (public search, no API key needed)

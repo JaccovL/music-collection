@@ -26,6 +26,9 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.5.3 (2026-08-29)
+- **Bugfix: Random Release button** — Fixed showDetail() to fetch from API when release isn't on current page
+
 ### v1.5.2 (2026-08-29)
 - **Bugfix: Sync All** — Fixed database error caused by missing app context in background thread
 - **Removed Quick Add** — Discogs is the leading source for collection data
