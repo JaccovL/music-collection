@@ -20,11 +20,16 @@ A web application for browsing and managing a personal music collection synced f
 - **Local Admin Login** — Fallback login when LDAP is unavailable
 - **Health Checks** — MariaDB and LDAP connectivity monitoring
 - **Database Stats** — Modern dashboard with table sizes and visual bar chart
-- **Collection Statistics** — Visual breakdowns: pie/bar charts by genre, decade, format, country, label
+|- **Collection Statistics** — Visual breakdowns: pie/bar charts by decade, format, country, label
 - **Settings Panel** — Configure Discogs token, update interval, database connection, features
 - **Search Discogs** — Search directly on Discogs.com without API key
 
 ## Version History
+
+### v1.4.0 (2026-08-29)
+- **Enhanced Health Checks** — Two-level MariaDB check (socket + query) for real failure detection
+- **Code Optimization** — Extracted background thread helper, image/format helpers, fixed duplicate route
+- **Documentation** — Added 6 missing API endpoints, fixed project structure, completed configuration table
 
 ### v1.3.5 (2026-08-29)
 - **Removed Genre column** — Genre filter and column removed from Collection and Wantlist pages
@@ -248,7 +253,10 @@ music-collection/
 │   ├── admin_settings.html # Settings/configuration panel
 │   ├── admin_sync_status.html  # Sync status + triggers
 │   ├── admin_db_stats.html     # Database statistics
-│   └── admin_health.html       # Health check status page
+│   ├── admin_statistics.html   # Collection statistics dashboard
+│   ├── admin_health.html       # Health check status page
+│   ├── export_pdf.html         # PDF export template (collection)
+│   └── export_pdf_wantlist.html # PDF export template (wantlist)
 ├── static/
 │   ├── css/style.css       # All styles (dark/light theme)
 │   ├── js/app.js           # Theme toggle, dropdowns, sync polling
@@ -277,7 +285,12 @@ music-collection/
 | `/admin/settings` | GET/POST | Configuration panel |
 | `/admin/sync-status` | GET | Sync status page |
 | `/admin/sync-status-api` | GET | Sync status JSON API |
-| `/admin/sync-collection` | POST | Trigger collection sync |
+| `/export/csv` | GET | Export filtered results as CSV |
+| `/export/pdf` | GET | Export filtered results as PDF |
+| `/admin/statistics` | GET | Collection statistics dashboard |
+| `/admin/statistics-api/<type>` | GET | Statistics JSON data (format, country, label, decade, summary) |
+| `/api/release-detail/<id>` | GET | JSON release detail with tracklist |
+| `/admin/sync` | POST | Trigger collection sync |
 | `/admin/sync-tracks` | POST | Trigger track sync |
 | `/admin/db-stats` | GET | Database statistics |
 | `/admin/health` | GET | Health check page |
@@ -296,14 +309,24 @@ All settings configurable via `.env` or the web UI:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECRET_KEY` | random | Flask session encryption key AND admin password |
+| `SECRET_KEY` | `dev-secret-change-me` | Flask session encryption key AND admin password |
+| `DATABASE_URL` | `mysql+pymysql://music:***@10.10.0.10:3306/music_collection` | Database connection string |
 | `DISCOGS_TOKEN` | — | Discogs API token |
 | `DISCOGS_USERNAME` | — | Your Discogs username |
-| `DATABASE_URL` | sqlite | MariaDB connection string |
-| `UPDATE_INTERVAL_HOURS` | 24 | Hours between auto-syncs |
-| `LDAP_ENABLED` | false | Enable LDAP authentication |
+| `UPDATE_INTERVAL_HOURS` | `24` | Hours between auto-syncs |
+| `LDAP_ENABLED` | `false` | Enable LDAP authentication |
 | `LDAP_HOST` | — | LDAP server hostname |
+| `LDAP_PORT` | `389` | LDAP server port |
+| `LDAP_USE_SSL` | `false` | Use LDAPS (SSL) |
 | `LDAP_BASE_DN` | — | LDAP base DN for user search |
+| `LDAP_BIND_DN` | — | LDAP bind DN for service account |
+| `LDAP_BIND_PASSWORD` | — | LDAP bind password |
+| `LDAP_USER_FILTER` | `(uid={username})` | LDAP user search filter |
+| `LDAP_GROUP_DN` | — | LDAP group DN for membership check |
+| `LDAP_ADMIN_GROUP_DN` | — | LDAP admin group DN |
+| `TZ` | — | Timezone (e.g., `Europe/Amsterdam`) |
+
+> **Note:** All settings are also configurable via the web Settings panel (except `SECRET_KEY` and `DATABASE_URL` which require container restart).
 
 ## Technologies Used
 

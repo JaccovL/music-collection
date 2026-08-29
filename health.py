@@ -1,5 +1,6 @@
 """Health check services for MariaDB and LDAP connectivity."""
 import logging
+import os
 import socket
 import time
 from datetime import datetime, timedelta
@@ -55,6 +56,42 @@ def check_mariadb(host: str, port: int = 3306, timeout: int = 5) -> Tuple[bool, 
         logger.warning(result[1])
     
     _health_cache.set(f'mariadb:{host}:{port}', result)
+    return result
+
+
+def check_mariadb_query(db_uri: str = None, timeout: int = 5) -> Tuple[bool, Optional[str]]:
+    """Check if MariaDB is actually responding to queries. Returns (ok, error_msg).
+    
+    This goes beyond the socket check by executing a real query to verify
+    the database is truly functional (not just accepting connections).
+    """
+    cached = _health_cache.get('mariadb:query')
+    if cached is not None:
+        return cached
+    
+    try:
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.exc import OperationalError, DatabaseError
+        
+        if db_uri is None:
+            db_uri = os.environ.get('DATABASE_URL', 'mysql+pymysql://music:***@10.10.0.10:3306/music_collection')
+        
+        engine = create_engine(db_uri, connect_args={'connect_timeout': timeout})
+        with engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        engine.dispose()
+        result = (True, None)
+    except OperationalError as e:
+        result = (False, f"MariaDB query failed (connection error): {e}")
+        logger.warning(result[1])
+    except DatabaseError as e:
+        result = (False, f"MariaDB query failed (database error): {e}")
+        logger.warning(result[1])
+    except Exception as e:
+        result = (False, f"MariaDB query failed: {e}")
+        logger.warning(result[1])
+    
+    _health_cache.set('mariadb:query', result)
     return result
 
 
@@ -122,6 +159,8 @@ class HealthStatus:
     def __init__(self):
         self.mariadb_ok: bool = True
         self.mariadb_error: Optional[str] = None
+        self.mariadb_query_ok: bool = True
+        self.mariadb_query_error: Optional[str] = None
         self.ldap_ok: bool = True
         self.ldap_error: Optional[str] = None
         self.ldap_configured: bool = False
@@ -132,12 +171,14 @@ class HealthStatus:
         return {
             'mariadb_ok': self.mariadb_ok,
             'mariadb_error': self.mariadb_error,
+            'mariadb_query_ok': self.mariadb_query_ok,
+            'mariadb_query_error': self.mariadb_query_error,
             'ldap_ok': self.ldap_ok,
             'ldap_error': self.ldap_error,
             'ldap_configured': self.ldap_configured,
             'local_fallback_enabled': self.local_fallback_enabled,
             'last_check': self.last_check.isoformat() if self.last_check else None,
-            'healthy': self.mariadb_ok and (not self.ldap_configured or self.ldap_ok)
+            'healthy': self.mariadb_ok and self.mariadb_query_ok and (not self.ldap_configured or self.ldap_ok)
         }
 
 
@@ -151,10 +192,19 @@ def run_health_checks(db_host: str = '10.10.0.10', db_port: int = 3306,
     status.local_fallback_enabled = local_fallback
     status.last_check = datetime.utcnow()
     
-    # Check MariaDB
+    # Check MariaDB socket
     ok, err = check_mariadb(db_host, db_port)
     status.mariadb_ok = ok
     status.mariadb_error = err
+    
+    # Also check actual query if socket check passed
+    if ok:
+        ok_q, err_q = check_mariadb_query()
+        status.mariadb_query_ok = ok_q
+        status.mariadb_query_error = err_q
+    else:
+        status.mariadb_query_ok = False
+        status.mariadb_query_error = "Skipped — socket check failed"
     
     # Check LDAP if configured
     if ldap_enabled and ldap_host:

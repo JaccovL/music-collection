@@ -1,25 +1,33 @@
-# Release v1.3.5
+# Release v1.4.0
 
 ## What's New
 
-### Removed Genre Column
-- **Genre filter removed** — No longer filtering or displaying genre on Collection and Wantlist pages
-- **Cleaner UI** — More space for other columns and better readability
+### Enhanced Health Checks
+- **Two-level MariaDB check** — Socket check (port open) + Query check (actual `SELECT 1` execution)
+- Catches real failures: corrupt tables, disk full, wrong credentials, database not responding
+- Health page shows both checks separately
 
-### Format Column Filtering
-- **Smart format display** — Combines `format` + `format_details`, shows only first 3 comma-separated values
-- **Example:** `Vinyl, 12", 45 RPM, Maxi-Single, Stereo, Qty: 1` → `Vinyl, 12", 45 RPM…`
-- **Applied everywhere** — Table view, card view, and detail modal on both Collection and Wantlist pages
+### Code Optimization
+- **Extracted `_run_in_background()` helper** — Single wrapper for all background threads (was 3 identical blocks)
+- **Extracted `_update_images()` and `_update_format()` helpers** in sync_service.py — Eliminates duplicated image/format handling
+- **Removed duplicate route bug** — Two routes both named `/admin/sync-status`, renamed one to `/admin/sync-status-api`
+- **Cleaned statistics API** — Removed `genre` chart type (no longer in UI)
 
-### Backend Cleanup
-- Removed genre references from filters, API responses, and template context
-- Both Collection and Wantlist pages maintain identical column structure
+### Documentation Fixes
+- **API table** — Added 6 missing endpoints (`/export/csv`, `/export/pdf`, `/admin/statistics`, etc.)
+- **Project structure** — Added missing templates (`admin_statistics.html`, `export_pdf.html`, `export_pdf_wantlist.html`)
+- **Configuration table** — Added 8 missing LDAP variables + `TZ`, corrected `DATABASE_URL` default
+- **Removed "genre" references** — From README, Wiki, and statistics reference file
 
 ### Files Modified
-- `app.py` — Removed genre from filters, API responses, and template context
-- `templates/search.html` — Removed genre column, added `shortFormat()` helper
-- `templates/wantlist.html` — Removed genre column, added `shortFormat()` helper
+- `app.py` — Background thread helper, route fix, statistics cleanup
+- `sync_service.py` — Image and format helpers extracted
+- `health.py` — Query-level check added
+- `templates/admin_health.html` — Shows both socket and query checks
+- `templates/search.html`, `templates/wantlist.html` — Format filtering
+- `README.md` — API docs, project structure, configuration
+- `RELEASE_NOTES.md` — This file
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.4...v1.3.5
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.3.5...v1.4.0

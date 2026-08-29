@@ -7,7 +7,7 @@
     <!-- Search bar -->
     <div class="search-bar">
         <div class="search-row">
-            <input type="text" id="global-search" placeholder="Search by title, artist, label, genre, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
+            <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
             <a href="{{ url_for('wantlist') }}" class="btn">Reset</a>
@@ -72,7 +72,6 @@
                     <label><input type="checkbox" data-col="title" checked> Title</label>
                     <label><input type="checkbox" data-col="year" checked> Year</label>
                     <label><input type="checkbox" data-col="format" checked> Format</label>
-                    <label><input type="checkbox" data-col="genre" checked> Genre</label>
                     <label><input type="checkbox" data-col="style" checked> Style</label>
                     <label><input type="checkbox" data-col="label" checked> Label</label>
                     <label><input type="checkbox" data-col="catalog" checked> Catalog #</label>
@@ -131,7 +130,7 @@
     {% if pages > 1 %}
     <div class="pagination">
         {% if page > 1 %}
-        <a href="{{ url_for('wantlist', q=search, format=format_filter, genre=genre_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page-1) }}" class="btn btn-sm">← Prev</a>
+        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page-1) }}" class="btn btn-sm">← Prev</a>
         {% endif %}
         
         <div class="page-goto">
@@ -151,7 +150,7 @@
         </div>
         
         {% if page < pages %}
-        <a href="{{ url_for('wantlist', q=search, format=format_filter, genre=genre_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page+1) }}" class="btn btn-sm">Next →</a>
+        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page+1) }}" class="btn btn-sm">Next →</a>
         {% endif %}
     </div>
     {% endif %}
@@ -178,10 +177,12 @@ function escapeHtml(text) {
 }
 
 // Helper: show only first 3 comma-separated format values
-function shortFormat(text) {
-    if (!text) return '';
-    const parts = text.split(',').map(s => s.trim());
-    if (parts.length <= 3) return text;
+function shortFormat(text, details) {
+    if (!text && !details) return '';
+    // Combine format + format_details
+    const combined = details ? (text + ', ' + details) : (text || '');
+    const parts = combined.split(',').map(s => s.trim());
+    if (parts.length <= 3) return combined;
     return parts.slice(0, 3).join(', ') + '…';
 }
 
@@ -206,7 +207,7 @@ function renderTable() {
             <td class="col-artist"><span class="cell-artist">${escapeHtml(item.artist)}</span></td>
             <td class="col-title"><span class="cell-title">${escapeHtml(item.title)}</span></td>
             <td class="col-year">${item.year || ''}</td>
-            <td class="col-format">${escapeHtml(shortFormat(item.format))}</td>
+            <td class="col-format">${escapeHtml(shortFormat(item.format, item.format_details))}</td>
             <td class="col-style">${escapeHtml(item.style)}</td>
             <td class="col-label">${escapeHtml(item.label)}</td>
             <td class="col-catalog">${escapeHtml(item.catalog)}</td>
@@ -240,7 +241,7 @@ function renderCards() {
                 <div class="card-title">${escapeHtml(item.title)}</div>
                 <div class="card-meta">
                     ${item.year ? `<span>${item.year}</span>` : ''}
-                    ${item.format ? `<span>${escapeHtml(item.format)}</span>` : ''}
+                    ${item.format ? `<span>${escapeHtml(shortFormat(item.format, item.format_details))}</span>` : ''}
                 </div>
             </div>
         `;
@@ -264,8 +265,7 @@ function showDetail(itemId) {
     const fields = [
         ['Discogs ID', item.discogs_id],
         ['Year', item.year],
-        ['Format', item.format],
-        ['Genre', item.genre],
+        ['Format', shortFormat(item.format, item.format_details)],
         ['Style', item.style],
         ['Label', item.label],
         ['Date Added', item.date_added],
@@ -353,7 +353,6 @@ function applyFilters() {
     
     const search = document.getElementById('global-search').value;
     const format = document.getElementById('filter-format').value;
-    const genre = document.getElementById('filter-genre').value;
     const style = document.getElementById('filter-style').value;
     const yearFrom = document.getElementById('filter-year-from').value;
     const yearTo = document.getElementById('filter-year-to').value;
@@ -361,7 +360,6 @@ function applyFilters() {
     
     if (search) params.set('q', search);
     if (format) params.set('format', format);
-    if (genre) params.set('genre', genre);
     if (style) params.set('style', style);
     if (yearFrom) params.set('year_from', yearFrom);
     if (yearTo) params.set('year_to', yearTo);

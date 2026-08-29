@@ -31,7 +31,6 @@ login_manager.login_view = 'login'
 
 scheduler = BackgroundScheduler()
 
-# Cache for filter options (refreshed every 5 min)
 _filter_cache = {'ts': 0, 'data': {}}
 FILTER_CACHE_TTL = 300
 
@@ -65,18 +64,18 @@ def set_setting(key, value):
         db.session.add(s)
     db.session.commit()
 
+def get_distinct(column, limit=50):
+    """Get distinct non-null values from a column."""
+    return [r[0] for r in db.session.query(column).distinct().limit(limit).all() if r[0]]
+
 def get_filter_options():
     """Get filter options with caching."""
     now = datetime.utcnow().timestamp()
     if now - _filter_cache['ts'] < FILTER_CACHE_TTL:
         return _filter_cache['data']
     
-    def get_distinct(column):
-        return [r[0] for r in db.session.query(column).distinct().limit(50).all() if r[0]]
-    
     _filter_cache['data'] = {
         'formats': get_distinct(Release.format),
-        'genres': get_distinct(Release.genre),
         'styles': get_distinct(Release.style),
         'countries': get_distinct(Release.country),
         'labels': get_distinct(Release.label),
@@ -104,18 +103,17 @@ def get_health_status():
     )
 
 def get_request_filters():
-    """Extract common filter parameters from request args."""
+    """Extract and return common filter parameters from request."""
     return {
         'search': request.args.get('q', '').strip(),
         'format_filter': request.args.get('format', '').strip(),
-        'genre_filter': request.args.get('genre', '').strip(),
         'style_filter': request.args.get('style', '').strip(),
         'label_filter': request.args.get('label', '').strip(),
         'year_from': request.args.get('year_from', '').strip(),
         'year_to': request.args.get('year_to', '').strip(),
     }
 
-def apply_common_filters(q, search, format_filter, genre_filter, style_filter, label_filter, year_from, year_to, model=Release):
+def apply_common_filters(q, search, format_filter, style_filter, label_filter, year_from, year_to, model=Release):
     """Apply common filters to a query."""
     if search:
         search_filter = f"%{search}%"
@@ -137,8 +135,6 @@ def apply_common_filters(q, search, format_filter, genre_filter, style_filter, l
     
     if format_filter:
         q = q.filter(model.format.like(f"%{format_filter}%"))
-    if genre_filter:
-        q = q.filter(model.genre.like(f"%{genre_filter}%"))
     if style_filter:
         q = q.filter(model.style.like(f"%{style_filter}%"))
     if label_filter:
@@ -167,6 +163,17 @@ def export_to_pdf(template, context, filename):
     pdf = HTML(string=html).write_pdf()
     return Response(pdf, mimetype='application/pdf',
                     headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+def _run_in_background(fn):
+    """Run a function in a background thread with app context."""
+    def wrapper(app_instance):
+        with app_instance.app_context():
+            try:
+                fn(app_instance)
+            except Exception as e:
+                logging.error(f"Background task {fn.__name__} failed: {e}")
+    
+    threading.Thread(target=wrapper, args=(app,)).start()
 
 # ==================== AUTH ====================
 
@@ -324,8 +331,9 @@ def search():
     releases_json = json.dumps([{
         'id': r.id, 'title': r.title,
         'artist': r.artist.name if r.artist else 'Unknown',
-        'year': r.year, 'format': r.format, 'genre': r.genre, 'style': r.style,
-        'label': r.label, 'country': r.country, 'catalog': r.catalog_number,
+        'year': r.year, 'format': r.format, 'format_details': r.format_details,
+        'style': r.style, 'label': r.label, 'country': r.country,
+        'catalog': r.catalog_number,
         'date_added': r.date_added.strftime('%Y-%m-%d') if r.date_added else '',
         'thumb': r.thumb_url, 'discogs_id': r.discogs_id
     } for r in releases])
@@ -333,7 +341,7 @@ def search():
     return render_template('search.html',
         releases=releases, releases_json=releases_json, pagination=pagination,
         query=filters['search'], sort=sort, order=order,
-        format_filter=filters['format_filter'], genre_filter=filters['genre_filter'],
+        format_filter=filters['format_filter'],
         style_filter=filters['style_filter'], label_filter=filters['label_filter'],
         year_from=filters['year_from'], year_to=filters['year_to'],
         **get_filter_options()
@@ -400,7 +408,6 @@ def api_discogs_release(discogs_id):
         'title': data.get('title', ''),
         'year': data.get('year'),
         'format': ', '.join(f.get('name', '') for f in data.get('formats', [])),
-        'genre': ', '.join(data.get('genres', [])),
         'style': ', '.join(data.get('styles', [])),
         'label': data.get('labels', [{}])[0].get('name') if data.get('labels') else None,
         'catalog_number': data.get('labels', [{}])[0].get('catno') if data.get('labels') else None,
@@ -421,7 +428,7 @@ def api_release_detail(release_id):
         'artist': release.artist.name if release.artist else '',
         'year': release.year, 'format': release.format,
         'format_details': release.format_details,
-        'genre': release.genre, 'style': release.style,
+        'style': release.style,
         'label': release.label, 'catalog_number': release.catalog_number,
         'country': release.country, 'thumb_url': release.thumb_url,
         'cover_image_url': release.cover_image_url,
@@ -535,7 +542,6 @@ def statistics_api(chart_type):
     """Return JSON data for statistics charts."""
     
     chart_queries = {
-        'genre': (Release.genre, Release.genre),
         'format': (Release.format, Release.format),
         'country': (Release.country, Release.country),
         'label': (Release.label, Release.label),
@@ -565,7 +571,6 @@ def statistics_api(chart_type):
         avg_tracks = db.func.count(Track.id).cast(db.Float) / db.func.count(db.distinct(Track.release_id))
         avg_result = db.session.query(avg_tracks).scalar()
         
-        top_genre = db.session.query(Release.genre, db.func.count(Release.id)).group_by(Release.genre).order_by(db.func.count(Release.id).desc()).first()
         top_format = db.session.query(Release.format, db.func.count(Release.id)).group_by(Release.format).order_by(db.func.count(Release.id).desc()).first()
         
         result = {
@@ -575,7 +580,6 @@ def statistics_api(chart_type):
             'year_min': int(year_range[0]) if year_range[0] else None,
             'year_max': int(year_range[1]) if year_range[1] else None,
             'avg_tracks_per_release': round(avg_result, 1) if avg_result else 0,
-            'top_genre': top_genre[0] if top_genre else 'N/A',
             'top_format': top_format[0] if top_format else 'N/A',
         }
     else:
@@ -600,14 +604,10 @@ def trigger_sync():
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
     def do_sync(app_instance):
-        with app_instance.app_context():
-            try:
-                service = SyncService(token, username)
-                service.sync_collection(triggered_by='manual', fetch_country=True)
-            except Exception as e:
-                logging.error(f"Background sync failed: {e}")
+        service = SyncService(token, username)
+        service.sync_collection(triggered_by='manual', fetch_country=True)
     
-    threading.Thread(target=do_sync, args=(app,)).start()
+    _run_in_background(do_sync)
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-tracks', methods=['POST'])
@@ -619,53 +619,43 @@ def trigger_track_sync():
     db.session.commit()
     
     def do_track_sync(app_instance):
-        with app_instance.app_context():
+        token = get_setting('discogs_token', '') or app_instance.config.get('DISCOGS_TOKEN', '')
+        username = get_setting('discogs_username', '') or app_instance.config.get('DISCOGS_USERNAME', '')
+        if not token or not username:
+            return
+        
+        client = DiscogsClient(token, username)
+        releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
+        total = len(releases)
+        logger.info(f"Fetching tracks for {total} releases")
+        
+        for i, release in enumerate(releases):
             try:
-                token = get_setting('discogs_token', '') or app_instance.config.get('DISCOGS_TOKEN', '')
-                username = get_setting('discogs_username', '') or app_instance.config.get('DISCOGS_USERNAME', '')
-                if not token or not username:
-                    return
-                
-                client = DiscogsClient(token, username)
-                releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
-                total = len(releases)
-                logger.info(f"Fetching tracks for {total} releases")
-                
-                for i, release in enumerate(releases):
-                    try:
-                        data = client.get_release(release.discogs_id)
-                        if data:
-                            tracklist = data.get('tracklist', [])
-                            if tracklist:
-                                Track.query.filter_by(release_id=release.id).delete()
-                                db.session.flush()
-                                for t in tracklist:
-                                    track = Track(release_id=release.id, position=t.get('position', ''), title=t.get('title', ''), duration=t.get('duration', ''))
-                                    db.session.add(track)
-                                db.session.commit()
-                        if (i+1) % 50 == 0:
-                            logger.info(f"Track sync: {i+1}/{total}")
-                    except Exception as e:
-                        logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
-                        db.session.rollback()
-                
-                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
-                if log_entry:
-                    log_entry.status = 'success'
-                    log_entry.finished_at = datetime.utcnow()
-                    db.session.commit()
-                
-                logger.info("Track sync complete")
+                data = client.get_release(release.discogs_id)
+                if data:
+                    tracklist = data.get('tracklist', [])
+                    if tracklist:
+                        Track.query.filter_by(release_id=release.id).delete()
+                        db.session.flush()
+                        for t in tracklist:
+                            track = Track(release_id=release.id, position=t.get('position', ''), title=t.get('title', ''), duration=t.get('duration', ''))
+                            db.session.add(track)
+                        db.session.commit()
+                if (i+1) % 50 == 0:
+                    logger.info(f"Track sync: {i+1}/{total}")
             except Exception as e:
-                logging.error(f"Track sync failed: {e}")
-                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
-                if log_entry:
-                    log_entry.status = 'error'
-                    log_entry.error_message = str(e)
-                    log_entry.finished_at = datetime.utcnow()
-                    db.session.commit()
+                logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
+                db.session.rollback()
+        
+        log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+        if log_entry:
+            log_entry.status = 'success'
+            log_entry.finished_at = datetime.utcnow()
+            db.session.commit()
+        
+        logger.info("Track sync complete")
     
-    threading.Thread(target=do_track_sync, args=(app,)).start()
+    _run_in_background(do_track_sync)
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-wantlist', methods=['POST'])
@@ -679,14 +669,10 @@ def trigger_wantlist_sync():
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
     def do_wantlist_sync(app_instance):
-        with app_instance.app_context():
-            try:
-                service = SyncService(token, username)
-                service.sync_wantlist(triggered_by='manual')
-            except Exception as e:
-                logging.error(f"Background wantlist sync failed: {e}")
+        service = SyncService(token, username)
+        service.sync_wantlist(triggered_by='manual')
     
-    threading.Thread(target=do_wantlist_sync, args=(app,)).start()
+    _run_in_background(do_wantlist_sync)
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-wantlist-status')
@@ -723,28 +709,23 @@ def wantlist():
     items = [{
         'id': item.id, 'discogs_id': item.discogs_id, 'title': item.title,
         'artist': item.artist_name, 'year': item.year, 'format': item.format,
-        'genre': item.genre, 'style': item.style, 'label': item.label,
+        'format_details': item.format_details, 'style': item.style, 'label': item.label,
         'catalog_number': item.catalog_number, 'country': item.country,
         'thumb': item.thumb_url, 'cover_image_url': item.cover_image_url,
         'date_added': item.date_added.strftime('%Y-%m-%d') if item.date_added else '',
         'notes': item.notes, 'rating': item.rating
     } for item in items_raw]
     
-    # Get filter options from wantlist data
-    def get_wantlist_distinct(column):
-        return sorted(set(r[0] for r in db.session.query(column).distinct().all() if r[0]))
-    
     return render_template('wantlist.html',
         items_json=json.dumps(items), items=items_raw,
         page=page, per_page=per_page, pages=pages, total=total,
         search=filters['search'], format_filter=filters['format_filter'],
-        genre_filter=filters['genre_filter'], style_filter=filters['style_filter'],
+        style_filter=filters['style_filter'],
         label_filter=filters['label_filter'], year_from=filters['year_from'],
         year_to=filters['year_to'],
-        formats=get_wantlist_distinct(Wantlist.format),
-        genres=get_wantlist_distinct(Wantlist.genre),
-        styles=get_wantlist_distinct(Wantlist.style),
-        labels=get_wantlist_distinct(Wantlist.label)
+        formats=sorted(set(r[0] for r in db.session.query(Wantlist.format).distinct().all() if r[0])),
+        styles=sorted(set(r[0] for r in db.session.query(Wantlist.style).distinct().all() if r[0])),
+        labels=sorted(set(r[0] for r in db.session.query(Wantlist.label).distinct().all() if r[0]))
     )
 
 @app.route('/wantlist/<int:item_id>')
@@ -763,43 +744,37 @@ def export_collection(export_type):
     source = request.args.get('source', 'collection')
     
     if source == 'wantlist':
-        return _export_wantlist(export_type, filters)
-    
-    q = Release.query.options(db.joinedload(Release.artist))
-    q = apply_common_filters(q, **filters)
-    releases = q.order_by(Release.title).all()
-    
-    if export_type == 'csv':
-        rows = [[r.artist.name if r.artist else '', r.title, r.year or '', r.format or '',
-                 r.genre or '', r.style or '', r.label or '', r.catalog_number or '',
-                 r.country or '', r.date_added.strftime('%Y-%m-%d') if r.date_added else ''] for r in releases]
-        return export_to_csv(
-            ['Artist', 'Title', 'Year', 'Format', 'Genre', 'Style', 'Label', 'Catalog #', 'Country', 'Date Added'],
-            rows, 'music_collection_export.csv'
-        )
-    elif export_type == 'pdf':
-        return export_to_pdf('export_pdf.html', {'releases': releases, 'total': len(releases)}, 'music_collection_export.pdf')
+        q = Wantlist.query
+        q = apply_common_filters(q, **filters, model=Wantlist)
+        items = q.order_by(Wantlist.title).all()
+        
+        if export_type == 'csv':
+            rows = [[item.artist_name or '', item.title, item.year or '', item.format or '',
+                     item.format_details or '', item.style or '', item.label or '', item.country or '',
+                     item.rating or '', item.date_added.strftime('%Y-%m-%d') if item.date_added else ''] for item in items]
+            return export_to_csv(
+                ['Artist', 'Title', 'Year', 'Format', 'Format Details', 'Style', 'Label', 'Country', 'Rating', 'Date Added'],
+                rows, 'music_wantlist_export.csv'
+            )
+        elif export_type == 'pdf':
+            return export_to_pdf('export_pdf_wantlist.html', {'items': items, 'total': len(items)}, 'music_wantlist_export.pdf')
     else:
-        return jsonify({'error': 'Unknown export type'}), 400
-
-def _export_wantlist(export_type, filters):
-    """Export wantlist as CSV or PDF."""
-    q = Wantlist.query
-    q = apply_common_filters(q, **filters, model=Wantlist)
-    items = q.order_by(Wantlist.title).all()
+        q = Release.query.options(db.joinedload(Release.artist))
+        q = apply_common_filters(q, **filters)
+        releases = q.order_by(Release.title).all()
+        
+        if export_type == 'csv':
+            rows = [[r.artist.name if r.artist else '', r.title, r.year or '', r.format or '',
+                     r.format_details or '', r.style or '', r.label or '', r.catalog_number or '',
+                     r.country or '', r.date_added.strftime('%Y-%m-%d') if r.date_added else ''] for r in releases]
+            return export_to_csv(
+                ['Artist', 'Title', 'Year', 'Format', 'Format Details', 'Style', 'Label', 'Catalog #', 'Country', 'Date Added'],
+                rows, 'music_collection_export.csv'
+            )
+        elif export_type == 'pdf':
+            return export_to_pdf('export_pdf.html', {'releases': releases, 'total': len(releases)}, 'music_collection_export.pdf')
     
-    if export_type == 'csv':
-        rows = [[item.artist_name or '', item.title, item.year or '', item.format or '',
-                 item.genre or '', item.style or '', item.label or '', item.country or '',
-                 item.rating or '', item.date_added.strftime('%Y-%m-%d') if item.date_added else ''] for item in items]
-        return export_to_csv(
-            ['Artist', 'Title', 'Year', 'Format', 'Genre', 'Style', 'Label', 'Country', 'Rating', 'Date Added'],
-            rows, 'music_wantlist_export.csv'
-        )
-    elif export_type == 'pdf':
-        return export_to_pdf('export_pdf_wantlist.html', {'items': items, 'total': len(items)}, 'music_wantlist_export.pdf')
-    else:
-        return jsonify({'error': 'Unknown export type'}), 400
+    return jsonify({'error': 'Unknown export type'}), 400
 
 @app.route('/admin/sync-tracks-status')
 @login_required
@@ -823,7 +798,7 @@ def track_sync_status():
         'error_message': log.error_message
     })
 
-@app.route('/admin/sync-status')
+@app.route('/admin/sync-status-api')
 @login_required
 @admin_required
 def sync_status():

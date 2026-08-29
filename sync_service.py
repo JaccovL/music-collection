@@ -5,12 +5,44 @@ from discogs_client import DiscogsClient
 
 logger = logging.getLogger(__name__)
 
+
+def _update_images(obj, data):
+    """Update thumb_url and cover_image_url from Discogs data. Works for Release and Wantlist."""
+    obj.thumb_url = data.get('thumb')
+    images = data.get('images', [])
+    if images:
+        for img in images:
+            if img.get('type') == 'primary':
+                obj.cover_image_url = img.get('uri')
+                break
+        if not obj.cover_image_url:
+            obj.cover_image_url = images[0].get('uri')
+    if not obj.cover_image_url and obj.thumb_url:
+        obj.cover_image_url = obj.thumb_url
+
+
+def _update_format(obj, data):
+    """Update format and format_details from Discogs formats array."""
+    formats = data.get('formats', [])
+    if formats:
+        obj.format = ', '.join(f.get('name', '') for f in formats)
+        descriptions = []
+        for f in formats:
+            desc = f.get('descriptions', [])
+            if desc:
+                descriptions.extend(desc)
+            qty = f.get('qty', '')
+            if qty:
+                descriptions.append(f'Qty: {qty}')
+        obj.format_details = ', '.join(descriptions) if descriptions else None
+
+
 class SyncService:
     def __init__(self, token, username):
         self.client = DiscogsClient(token, username)
         self.username = username
     
-    def sync_collection(self, triggered_by='manual', fetch_details=False):
+    def sync_collection(self, triggered_by='manual', fetch_details=False, fetch_country=False):
         """Sync all collection items from Discogs"""
         log = UpdateLog(sync_type='collection', status='running', triggered_by=triggered_by)
         db.session.add(log)
@@ -27,6 +59,7 @@ class SyncService:
             total_added = 0
             total_updated = 0
             artists_added = 0
+            new_releases = []
             
             for folder in folders:
                 folder_id = folder['id']
@@ -47,6 +80,12 @@ class SyncService:
                         result = self._process_collection_item(item, folder_id, fetch_details=fetch_details)
                         if result == 'added':
                             total_added += 1
+                            if fetch_country:
+                                basic = item.get('basic_information', {})
+                                release_id = basic.get('id')
+                                release = Release.query.filter_by(discogs_id=release_id).first()
+                                if release:
+                                    new_releases.append(release)
                         elif result == 'updated':
                             total_updated += 1
                     
@@ -54,8 +93,17 @@ class SyncService:
                     if page >= pagination.get('pages', 1):
                         break
                     page += 1
-                    
                     db.session.commit()
+            
+            if fetch_country and new_releases:
+                logger.info(f"Fetching country for {len(new_releases)} new releases")
+                for release in new_releases:
+                    try:
+                        self._fetch_release_country(release)
+                        db.session.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to fetch country for {release.discogs_id}: {e}")
+                        db.session.rollback()
             
             log.status = 'success'
             log.releases_added = total_added
@@ -101,22 +149,14 @@ class SyncService:
         # Get or create artist
         artist = Artist.query.filter_by(discogs_id=artist_id).first()
         if not artist:
-            artist = Artist(
-                discogs_id=artist_id,
-                name=artist_name
-            )
+            artist = Artist(discogs_id=artist_id, name=artist_name)
             db.session.add(artist)
             db.session.flush()
         
         # Get or create release
         release = Release.query.filter_by(discogs_id=release_id).first()
         if not release:
-            release = Release(
-                discogs_id=release_id,
-                title=title,
-                artist_id=artist.id,
-                folder_id=folder_id
-            )
+            release = Release(discogs_id=release_id, title=title, artist_id=artist.id, folder_id=folder_id)
             db.session.add(release)
             is_new = True
         else:
@@ -126,59 +166,23 @@ class SyncService:
         release.title = title
         release.artist_id = artist.id
         release.year = basic.get('year')
-        
-        # Format info
-        formats = basic.get('formats', [])
-        if formats:
-            release.format = ', '.join(f.get('name', '') for f in formats)
-            descriptions = []
-            for f in formats:
-                desc = f.get('descriptions', [])
-                if desc:
-                    descriptions.extend(desc)
-                qty = f.get('qty', '')
-                if qty:
-                    descriptions.append(f'Qty: {qty}')
-            release.format_details = ', '.join(descriptions) if descriptions else None
-        
-        # Genre/Style
-        release.genre = ', '.join(basic.get('genres', [])) if basic.get('genres') else None
+        _update_format(release, basic)
         release.style = ', '.join(basic.get('styles', [])) if basic.get('styles') else None
         
-        # Label
         labels = basic.get('labels', [])
         if labels:
             release.label = labels[0].get('name')
             release.catalog_number = labels[0].get('catno')
         
-        # Country
         release.country = basic.get('country')
+        _update_images(release, basic)
         
-        # Images - thumb_url is always available from collection API
-        release.thumb_url = basic.get('thumb')
-        
-        # cover_image_url from images array (may not exist in collection API)
-        images = basic.get('images', [])
-        if images:
-            for img in images:
-                if img.get('type') == 'primary':
-                    release.cover_image_url = img.get('uri')
-                    break
-            if not release.cover_image_url:
-                release.cover_image_url = images[0].get('uri')
-        
-        # Fallback: use thumb_url as cover_image_url if no full cover available
-        if not release.cover_image_url and release.thumb_url:
-            release.cover_image_url = release.thumb_url
-        
-        # Date added
         if date_added:
             try:
                 release.date_added = datetime.fromisoformat(date_added.replace('Z', '+00:00'))
             except:
                 pass
         
-        # Fetch full release details for tracks (only if requested)
         if fetch_details:
             self._fetch_release_details(release)
         
@@ -193,6 +197,7 @@ class SyncService:
         try:
             total_added = 0
             total_updated = 0
+            new_entries = []
             
             page = 1
             while True:
@@ -208,6 +213,11 @@ class SyncService:
                     result = self._process_wantlist_item(item)
                     if result == 'added':
                         total_added += 1
+                        basic = item.get('basic_information', {})
+                        release_id = basic.get('id')
+                        entry = Wantlist.query.filter_by(discogs_id=release_id).first()
+                        if entry:
+                            new_entries.append(entry)
                     elif result == 'updated':
                         total_updated += 1
                 
@@ -215,8 +225,17 @@ class SyncService:
                 if page >= pagination.get('pages', 1):
                     break
                 page += 1
-                
                 db.session.commit()
+            
+            if new_entries:
+                logger.info(f"Fetching country for {len(new_entries)} new wantlist entries")
+                for entry in new_entries:
+                    try:
+                        self._fetch_release_country(entry)
+                        db.session.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to fetch country for wantlist {entry.discogs_id}: {e}")
+                        db.session.rollback()
             
             log.status = 'success'
             log.releases_added = total_added
@@ -225,11 +244,7 @@ class SyncService:
             db.session.commit()
             
             logger.info(f"Wantlist sync complete: {total_added} added, {total_updated} updated")
-            return {
-                'status': 'success',
-                'added': total_added,
-                'updated': total_updated
-            }
+            return {'status': 'success', 'added': total_added, 'updated': total_updated}
             
         except Exception as e:
             logger.error(f"Wantlist sync failed: {e}")
@@ -244,23 +259,15 @@ class SyncService:
         basic = item.get('basic_information', {})
         release_id = basic.get('id')
         
-        # Parse artist
         artists_data = basic.get('artists', [])
         artist_name = artists_data[0].get('name', 'Unknown Artist') if artists_data else 'Unknown Artist'
         artist_id = artists_data[0].get('id') if artists_data else None
-        
-        # Parse date added
         date_added = item.get('date_added')
         
-        # Get or create wantlist entry
         entry = Wantlist.query.filter_by(discogs_id=release_id).first()
         if not entry:
-            entry = Wantlist(
-                discogs_id=release_id,
-                title=basic.get('title', 'Unknown'),
-                artist_name=artist_name,
-                artist_id=artist_id
-            )
+            entry = Wantlist(discogs_id=release_id, title=basic.get('title', 'Unknown'),
+                             artist_name=artist_name, artist_id=artist_id)
             db.session.add(entry)
             is_new = True
         else:
@@ -270,22 +277,7 @@ class SyncService:
         entry.artist_name = artist_name
         entry.artist_id = artist_id
         entry.year = basic.get('year')
-        
-        # Format info
-        formats = basic.get('formats', [])
-        if formats:
-            entry.format = ', '.join(f.get('name', '') for f in formats)
-            descriptions = []
-            for f in formats:
-                desc = f.get('descriptions', [])
-                if desc:
-                    descriptions.extend(desc)
-                qty = f.get('qty', '')
-                if qty:
-                    descriptions.append(f'Qty: {qty}')
-            entry.format_details = ', '.join(descriptions) if descriptions else None
-        
-        entry.genre = ', '.join(basic.get('genres', [])) if basic.get('genres') else None
+        _update_format(entry, basic)
         entry.style = ', '.join(basic.get('styles', [])) if basic.get('styles') else None
         
         labels = basic.get('labels', [])
@@ -294,19 +286,7 @@ class SyncService:
             entry.catalog_number = labels[0].get('catno')
         
         entry.country = basic.get('country')
-        entry.thumb_url = basic.get('thumb')
-        
-        images = basic.get('images', [])
-        if images:
-            for img in images:
-                if img.get('type') == 'primary':
-                    entry.cover_image_url = img.get('uri')
-                    break
-            if not entry.cover_image_url:
-                entry.cover_image_url = images[0].get('uri')
-        
-        if not entry.cover_image_url and entry.thumb_url:
-            entry.cover_image_url = entry.thumb_url
+        _update_images(entry, basic)
         
         if date_added:
             try:
@@ -319,34 +299,30 @@ class SyncService:
         
         return 'added' if is_new else 'updated'
     
+    def _fetch_release_country(self, release):
+        """Fetch country for a release (lightweight, no tracklist)"""
+        data = self.client.get_release(release.discogs_id)
+        if data:
+            country = data.get('country')
+            if country:
+                release.country = country
+            if not release.cover_image_url:
+                _update_images(release, data)
+    
     def _fetch_release_details(self, release):
         """Fetch full release details including tracklist"""
         data = self.client.get_release(release.discogs_id)
         if not data:
             return
         
-        # Update with full data
         release.title = data.get('title', release.title)
         
-        # Tracklist
         tracklist = data.get('tracklist', [])
         if tracklist:
-            # Clear existing tracks
             Track.query.filter_by(release_id=release.id).delete()
-            
             for t in tracklist:
-                track = Track(
-                    release_id=release.id,
-                    position=t.get('position', ''),
-                    title=t.get('title', ''),
-                    duration=t.get('duration', '')
-                )
+                track = Track(release_id=release.id, position=t.get('position', ''),
+                              title=t.get('title', ''), duration=t.get('duration', ''))
                 db.session.add(track)
         
-        # Update images if better quality available
-        images = data.get('images', [])
-        if images:
-            for img in images:
-                if img.get('type') == 'primary':
-                    release.cover_image_url = img.get('uri')
-                    break
+        _update_images(release, data)
