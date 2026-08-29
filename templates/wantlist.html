@@ -7,8 +7,9 @@
     <!-- Search bar -->
     <div class="search-bar">
         <div class="search-row">
-            <input type="text" id="global-search" placeholder="Search wantlist by title, artist, label..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
+            <input type="text" id="global-search" placeholder="Search by title, artist, label, genre, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
+            <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
             <a href="{{ url_for('wantlist') }}" class="btn">Reset</a>
         </div>
         
@@ -19,16 +20,6 @@
                     <option value="">All</option>
                     {% for f in formats %}
                     <option value="{{ f }}" {% if format_filter == f %}selected{% endif %}>{{ f }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <label>Genre</label>
-                <select id="filter-genre" onchange="applyFilters()">
-                    <option value="">All</option>
-                    {% for g in genres %}
-                    <option value="{{ g }}" {% if genre_filter == g %}selected{% endif %}>{{ g }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -56,8 +47,8 @@
             <div class="filter-group filter-group-year">
                 <label>Year</label>
                 <div class="year-inputs">
-                    <input type="number" id="filter-year-from" placeholder="From" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
-                    <input type="number" id="filter-year-to" placeholder="To" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-from" placeholder="1900" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-to" placeholder="2024" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
                 </div>
             </div>
         </div>
@@ -86,10 +77,15 @@
                     <label><input type="checkbox" data-col="label" checked> Label</label>
                     <label><input type="checkbox" data-col="catalog" checked> Catalog #</label>
                     <label><input type="checkbox" data-col="rating" checked> Rating</label>
+                    <label><input type="checkbox" data-col="date_added" checked> Date Added</label>
                 </div>
             </div>
             
             <div class="results-count" id="results-count">{{ total }} items</div>
+            <div class="export-buttons">
+                <button class="btn btn-sm" onclick="exportWantlistCSV()" title="Export to CSV">📊 CSV</button>
+                <button class="btn btn-sm" onclick="exportWantlistPDF()" title="Export to PDF">📄 PDF</button>
+            </div>
         </div>
     </div>
     
@@ -105,12 +101,12 @@
                         <th class="col-title" data-sort="title"><span>Title</span></th>
                         <th class="col-year" data-sort="year"><span>Year</span></th>
                         <th class="col-format" data-sort="format"><span>Format</span></th>
-                        <th class="col-genre" data-sort="genre"><span>Genre</span></th>
                         <th class="col-style" data-sort="style"><span>Style</span></th>
                         <th class="col-label" data-sort="label"><span>Label</span></th>
                         <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
                         <th class="col-rating" data-sort="rating"><span>Rating</span></th>
-                    </tr>
+                        <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
+                        </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
             </table>
@@ -170,7 +166,7 @@ const totalPages = {{ pages }};
 let currentView = 'table';
 let columnVisibility = {
     thumb: true, artist: true, title: true, year: true, format: true,
-    genre: true, style: true, label: true, catalog: true, rating: true
+    style: true, label: true, catalog: true, rating: true, date_added: true
 };
 
 // Escape HTML
@@ -179,6 +175,14 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Helper: show only first 3 comma-separated format values
+function shortFormat(text) {
+    if (!text) return '';
+    const parts = text.split(',').map(s => s.trim());
+    if (parts.length <= 3) return text;
+    return parts.slice(0, 3).join(', ') + '…';
 }
 
 // Render table view
@@ -202,12 +206,12 @@ function renderTable() {
             <td class="col-artist"><span class="cell-artist">${escapeHtml(item.artist)}</span></td>
             <td class="col-title"><span class="cell-title">${escapeHtml(item.title)}</span></td>
             <td class="col-year">${item.year || ''}</td>
-            <td class="col-format">${escapeHtml(item.format)}</td>
-            <td class="col-genre">${escapeHtml(item.genre)}</td>
+            <td class="col-format">${escapeHtml(shortFormat(item.format))}</td>
             <td class="col-style">${escapeHtml(item.style)}</td>
             <td class="col-label">${escapeHtml(item.label)}</td>
             <td class="col-catalog">${escapeHtml(item.catalog)}</td>
             <td class="col-rating"><span class="rating-stars">${ratingHtml}</span></td>
+            <td class="col-date_added">${item.date_added || ''}</td>
         `;
         tr.onclick = () => showDetail(item.id);
         tbody.appendChild(tr);
@@ -321,6 +325,26 @@ function gotoPage() {
     const params = new URLSearchParams(window.location.search);
     params.set('page', page);
     window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
+}
+
+// Search Discogs (public search, no API key needed)
+function searchDiscogs() {
+    const query = document.getElementById('global-search').value.trim();
+    if (!query) return;
+    window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(query) + '&type=release', '_blank');
+}
+
+// Export functions
+function exportWantlistCSV() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('source', 'wantlist');
+    window.location.href = '/export/csv?' + params.toString();
+}
+
+function exportWantlistPDF() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('source', 'wantlist');
+    window.location.href = '/export/pdf?' + params.toString();
 }
 
 // Apply filters

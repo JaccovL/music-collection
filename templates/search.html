@@ -25,16 +25,6 @@
             </div>
             
             <div class="filter-group">
-                <label>Genre</label>
-                <select id="filter-genre" onchange="applyFilters()">
-                    <option value="">All</option>
-                    {% for g in genres %}
-                    <option value="{{ g }}" {% if genre_filter == g %}selected{% endif %}>{{ g }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="filter-group">
                 <label>Style</label>
                 <select id="filter-style" onchange="applyFilters()">
                     <option value="">All</option>
@@ -92,6 +82,10 @@
             </div>
             
             <div class="results-count" id="results-count">{{ pagination.total }} releases</div>
+            <div class="export-buttons">
+                <button class="btn btn-sm" onclick="exportCSV()" title="Export to CSV">📊 CSV</button>
+                <button class="btn btn-sm" onclick="exportPDF()" title="Export to PDF">📄 PDF</button>
+            </div>
         </div>
     </div>
     
@@ -107,7 +101,6 @@
                         <th class="col-title" data-sort="title"><span>Title</span></th>
                         <th class="col-year" data-sort="year"><span>Year</span></th>
                         <th class="col-format" data-sort="format"><span>Format</span></th>
-                        <th class="col-genre" data-sort="genre"><span>Genre</span></th>
                         <th class="col-style" data-sort="style"><span>Style</span></th>
                         <th class="col-label" data-sort="label"><span>Label</span></th>
                         <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
@@ -175,7 +168,7 @@ let currentSort = '{{ sort }}';
 let currentOrder = '{{ order }}';
 let columnVisibility = {
     thumb: true, artist: true, title: true, year: true, format: true,
-    genre: true, style: true, label: true, catalog: true,
+    style: true, label: true, catalog: true,
     date_added: true, tracks: true
 };
 
@@ -185,6 +178,14 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Helper: show only first 3 comma-separated format values
+function shortFormat(text) {
+    if (!text) return '';
+    const parts = text.split(',').map(s => s.trim());
+    if (parts.length <= 3) return text;
+    return parts.slice(0, 3).join(', ') + '…';
 }
 
 // Render table view
@@ -204,8 +205,7 @@ function renderTable() {
             <td class="col-artist"><span class="cell-artist">${escapeHtml(release.artist)}</span></td>
             <td class="col-title"><span class="cell-title">${escapeHtml(release.title)}</span></td>
             <td class="col-year">${release.year || ''}</td>
-            <td class="col-format">${escapeHtml(release.format)}</td>
-            <td class="col-genre">${escapeHtml(release.genre)}</td>
+            <td class="col-format">${escapeHtml(shortFormat(release.format))}</td>
             <td class="col-style">${escapeHtml(release.style)}</td>
             <td class="col-label">${escapeHtml(release.label)}</td>
             <td class="col-catalog">${escapeHtml(release.catalog)}</td>
@@ -330,6 +330,17 @@ function searchDiscogs() {
     const query = document.getElementById('global-search').value.trim();
     if (!query) return;
     window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(query) + '&type=release', '_blank');
+}
+
+// Export functions
+function exportCSV() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = '/export/csv?' + params.toString();
+}
+
+function exportPDF() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = '/export/pdf?' + params.toString();
 }
 
 // Apply filters

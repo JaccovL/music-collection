@@ -9,7 +9,7 @@ A web application for browsing and managing a personal music collection synced f
 - **Daily Auto-Update** — Scheduler pulls new additions automatically every 24 hours (configurable)
 - **Manual Sync** — Trigger sync from the web UI anytime
 - **Full-Text Search** — Search across titles, artists, labels, and track titles
-- **Advanced Filters** — Filter by Format, Genre, Style, Label, Year range
+- **Advanced Filters** — Filter by Format, Style, Label, Year range
 - **Sortable Columns** — Click any column header to sort
 - **Dual Views** — Table view (spreadsheet-like) or Card view (grid of covers)
 - **Detail Modal** — Click any release for full info: cover image, tracklist, metadata
@@ -25,6 +25,13 @@ A web application for browsing and managing a personal music collection synced f
 - **Search Discogs** — Search directly on Discogs.com without API key
 
 ## Version History
+
+### v1.3.5 (2026-08-29)
+- **Removed Genre column** — Genre filter and column removed from Collection and Wantlist pages
+- **Format column filtering** — Format now shows only first 3 comma-separated values (combines format + format_details)
+  - Example: `Vinyl, 12", 45 RPM, Maxi-Single, Stereo, Qty: 1` → `Vinyl, 12", 45 RPM…`
+- **Backend cleanup** — Removed genre references from filters, API responses, and template context
+- **Wantlist equality** — Both pages maintain identical column structure
 
 ### v1.3.4 (2026-08-29)
 - **Code Cleanup** — Optimized and cleaned the codebase
