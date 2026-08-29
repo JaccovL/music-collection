@@ -26,6 +26,10 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.5.2 (2026-08-29)
+- **Bugfix: Sync All** — Fixed database error caused by missing app context in background thread
+- **Removed Quick Add** — Discogs is the leading source for collection data
+
 ### v1.5.1 (2026-08-29)
 - **🎲 Random Release Picker** — Button in search bar picks a random release from current filtered results
 - **➕ Quick Add by Discogs URL/ID** — Modal to paste a Discogs URL or ID and instantly add to collection

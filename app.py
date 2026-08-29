@@ -558,7 +558,7 @@ def sync_all():
         finally:
             _sync_lock.release()
     
-    threading.Thread(target=do_sync_all, args=(app,)).start()
+    _run_in_background(do_sync_all)
     return jsonify({'status': 'started', 'message': 'Collection sync started, track sync will follow automatically.'})
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
@@ -884,123 +884,6 @@ def wantlist():
 def wantlist_detail(item_id):
     item = Wantlist.query.get_or_404(item_id)
     return render_template('wantlist_detail.html', item=item)
-
-# ==================== QUICK ADD ====================
-
-@app.route('/admin/quick-add', methods=['POST'])
-@login_required
-@admin_required
-def quick_add():
-    """Add a release to the collection by Discogs URL or release ID."""
-    import re
-    
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    url = data.get('url', '').strip()
-    release_id = data.get('release_id', '').strip()
-    
-    # Extract release ID from URL if provided
-    if url:
-        # Match patterns like:
-        # https://www.discogs.com/release/123456
-        # https://www.discogs.com/release/123456-some-title
-        # https://www.discogs.com/s/release/123456
-        match = re.search(r'/release/(\d+)', url)
-        if match:
-            release_id = match.group(1)
-        else:
-            return jsonify({'error': 'Could not extract release ID from URL. Expected format: https://www.discogs.com/release/...'}), 400
-    
-    if not release_id:
-        return jsonify({'error': 'No release ID provided'}), 400
-    
-    try:
-        release_id = int(release_id)
-    except ValueError:
-        return jsonify({'error': 'Invalid release ID'}), 400
-    
-    # Check if already in collection
-    existing = Release.query.filter_by(discogs_id=release_id).first()
-    if existing:
-        return jsonify({'error': 'Release already in collection', 'release_id': existing.id}), 409
-    
-    # Fetch from Discogs
-    token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
-    username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
-    
-    if not token or not username:
-        return jsonify({'error': 'Discogs credentials not configured'}), 400
-    
-    client = DiscogsClient(token, username)
-    data = client.get_release(release_id)
-    
-    if not data:
-        return jsonify({'error': 'Failed to fetch release from Discogs'}), 500
-    
-    # Parse artist
-    artists_data = data.get('artists', [])
-    if not artists_data:
-        return jsonify({'error': 'No artist data found'}), 500
-    
-    artist_data = artists_data[0]
-    artist_id = artist_data.get('id')
-    artist_name = artist_data.get('name', 'Unknown Artist')
-    
-    # Get or create artist
-    artist = Artist.query.filter_by(discogs_id=artist_id).first()
-    if not artist:
-        artist = Artist(discogs_id=artist_id, name=artist_name)
-        db.session.add(artist)
-        db.session.flush()
-    
-    # Create release
-    release = Release(
-        discogs_id=release_id,
-        title=data.get('title', 'Unknown'),
-        artist_id=artist.id,
-        folder_id=0  # Default folder
-    )
-    db.session.add(release)
-    db.session.flush()
-    
-    # Update fields from Discogs data
-    from sync_service import _update_format, _update_images
-    _update_format(release, data)
-    _update_images(release, data)
-    release.style = ', '.join(data.get('styles', [])) if data.get('styles') else None
-    release.year = data.get('year')
-    
-    labels = data.get('labels', [])
-    if labels:
-        release.label = labels[0].get('name')
-        release.catalog_number = labels[0].get('catno')
-    
-    release.country = data.get('country')
-    release.date_added = datetime.utcnow()
-    
-    # Fetch tracklist
-    tracklist = data.get('tracklist', [])
-    if tracklist:
-        for t in tracklist:
-            track = Track(
-                release_id=release.id,
-                position=t.get('position', ''),
-                title=t.get('title', ''),
-                duration=t.get('duration', '')
-            )
-            db.session.add(track)
-    
-    db.session.commit()
-    
-    return jsonify({
-        'status': 'success',
-        'release_id': release.id,
-        'title': release.title,
-        'artist': artist.name,
-        'discogs_id': release_id
-    })
 
 # ==================== EXPORT ====================
 
