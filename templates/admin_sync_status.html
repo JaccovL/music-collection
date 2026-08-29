@@ -22,7 +22,10 @@
                 <p><span class="sync-dot idle"></span> Never run</p>
             {% endif %}
         </div>
-        <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
+            <button id="sync-all-btn" class="btn btn-primary" onclick="triggerSyncAll()">🔄 Sync All (Collection + Tracks)</button>
+        </div>
     </section>
     
     <section class="settings-section">
@@ -45,6 +48,7 @@
         <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
     </section>
     
+    {% if get_setting('wantlist_enabled', 'false') == 'true' %}
     <section class="settings-section">
         <h2>Wantlist Sync</h2>
         <div id="wantlist-sync-status">
@@ -52,7 +56,14 @@
         </div>
         <button id="wantlist-sync-btn" class="btn btn-primary" onclick="triggerWantlistSync()">Sync Wantlist Now</button>
     </section>
+    {% endif %}
 
+    <section class="settings-section">
+        <h2>Danger Zone</h2>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Permanently delete all collection data and start fresh. This cannot be undone.</p>
+        <button id="reset-btn" class="btn" style="background: #d32f2f; color: #fff; border-color: #d32f2f;" onclick="confirmReset()">🗑️ Reset Collection</button>
+    </section>
+    
     <section class="settings-section">
         <h2>Database Stats</h2>
         <p>Total releases: <strong>{{ total_releases }}</strong></p>
@@ -67,6 +78,59 @@ function formatTimestamp(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     return d.toLocaleString();
+}
+
+function triggerSyncAll() {
+    const btn = document.getElementById('sync-all-btn');
+    const status = document.getElementById('sync-log-status');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    status.innerHTML = '<p><span class="sync-dot running"></span> Starting collection sync...</p>';
+    
+    fetch('{{ url_for("sync_all") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${data.error}</p>`;
+            } else {
+                status.innerHTML = '<p><span class="sync-dot running"></span> Collection sync started, track sync will follow...</p>';
+            }
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync All (Collection + Tracks)';
+        })
+        .catch(err => {
+            status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${err}</p>`;
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync All (Collection + Tracks)';
+        });
+}
+
+function confirmReset() {
+    if (confirm('⚠️ WARNING: This will permanently DELETE all releases, artists, tracks, and sync history from your database.\n\nThis cannot be undone. Are you sure?')) {
+        if (confirm('Last chance! Really delete everything?')) {
+            const btn = document.getElementById('reset-btn');
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+            
+            fetch('{{ url_for("reset_collection") }}', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        btn.disabled = false;
+                        btn.textContent = '🗑️ Reset Collection';
+                    } else {
+                        alert(data.message);
+                        location.reload();
+                    }
+                })
+                .catch(err => {
+                    alert('Error: ' + err);
+                    btn.disabled = false;
+                    btn.textContent = '🗑️ Reset Collection';
+                });
+        }
+    }
 }
 
 function triggerSync() {
@@ -215,8 +279,11 @@ function pollWantlistSyncStatus() {
 }
 
 pollSyncStatus();
-pollWantlistSyncStatus();
 setInterval(pollSyncStatus, 10000);
+
+{% if get_setting('wantlist_enabled', 'false') == 'true' %}
+pollWantlistSyncStatus();
 setInterval(pollWantlistSyncStatus, 10000);
+{% endif %}
 </script>
 {% endblock %}

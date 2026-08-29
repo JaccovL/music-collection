@@ -10,6 +10,8 @@
             <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ query }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
+            <button class="btn" onclick="randomRelease()" title="Pick a random release from current results">🎲 Random</button>
+            <button class="btn" onclick="showQuickAddModal()" title="Quick add by Discogs URL or ID">➕ Quick Add</button>
             <a href="{{ url_for('search') }}" class="btn">Reset</a>
         </div>
         
@@ -127,6 +129,22 @@
         </div>
     </div>
     
+    <!-- Quick Add modal -->
+    <div class="modal-overlay" id="quickadd-modal" onclick="hideQuickAddModal()">
+        <div class="modal" onclick="event.stopPropagation()" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>➕ Quick Add Release</h2>
+                <button class="modal-close" onclick="hideQuickAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: var(--text-muted);">Paste a Discogs release URL or enter a release ID to add it to your collection.</p>
+                <input type="text" id="quickadd-input" placeholder="https://www.discogs.com/release/... or release ID" class="search-input" style="width: 100%; margin-bottom: 1rem;">
+                <div id="quickadd-status" style="min-height: 1.5rem; margin-bottom: 0.5rem;"></div>
+                <button id="quickadd-submit" class="btn btn-primary" onclick="submitQuickAdd()">Add</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Pagination -->
     {% if pagination.pages > 1 %}
     <div class="pagination">
@@ -211,7 +229,7 @@ function renderTable() {
             <td class="col-label">${escapeHtml(release.label)}</td>
             <td class="col-catalog">${escapeHtml(release.catalog)}</td>
             <td class="col-date_added">${release.date_added || ''}</td>
-            <td class="col-tracks"><span class="track-count" data-id="${release.id}">...</span></td>
+            <td class="col-tracks"><span class="track-count" data-id="${release.id}" data-discogs="${release.discogs_id}">...</span></td>
             <td class="col-view"><button class="btn btn-sm" onclick="event.stopPropagation(); showDetail(${release.id})">View</button></td>
         `;
         tr.onclick = () => showDetail(release.id);
@@ -325,6 +343,70 @@ function gotoPage() {
     window.location.href = '/search?' + params.toString();
 }
 
+// Random release picker
+function randomRelease() {
+    const params = new URLSearchParams(window.location.search);
+    fetch('/api/random-release?' + params.toString())
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                showDetail(data.id);
+            }
+        });
+}
+
+// Quick-add modal
+function showQuickAddModal() {
+    const modal = document.getElementById('quickadd-modal');
+    if (modal) modal.classList.add('open');
+}
+
+function hideQuickAddModal() {
+    const modal = document.getElementById('quickadd-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+function submitQuickAdd() {
+    const input = document.getElementById('quickadd-input');
+    const btn = document.getElementById('quickadd-submit');
+    const status = document.getElementById('quickadd-status');
+    const value = input.value.trim();
+    
+    if (!value) {
+        status.innerHTML = '<span style="color: #ff6b6b;">Please enter a URL or release ID</span>';
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    status.innerHTML = '<span style="color: #b0b0b0;">Fetching from Discogs...</span>';
+    
+    fetch('/admin/quick-add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url: value})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            status.innerHTML = `<span style="color: #ff6b6b;">${data.error}</span>`;
+        } else {
+            status.innerHTML = `<span style="color: #69db7c;">✓ Added: ${data.artist} - ${data.title}</span>`;
+            input.value = '';
+            setTimeout(() => location.reload(), 1500);
+        }
+        btn.disabled = false;
+        btn.textContent = 'Add';
+    })
+    .catch(err => {
+        status.innerHTML = `<span style="color: #ff6b6b;">Error: ${err}</span>`;
+        btn.disabled = false;
+        btn.textContent = 'Add';
+    });
+}
+
 // Search Discogs (public search, no API key needed)
 function searchDiscogs() {
     const query = document.getElementById('global-search').value.trim();
@@ -424,7 +506,13 @@ function loadTrackCounts() {
             .then(r => r.json())
             .then(tracks => {
                 const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
-                if (el) el.textContent = tracks.length;
+                if (el) {
+                    if (tracks.length === 0) {
+                        el.innerHTML = '<span class="no-tracks" title="No tracks synced">⚠️</span>';
+                    } else {
+                        el.textContent = tracks.length;
+                    }
+                }
             });
     });
 }

@@ -31,9 +31,10 @@ def _update_format(obj, data):
             desc = f.get('descriptions', [])
             if desc:
                 descriptions.extend(desc)
-            qty = f.get('qty', '')
-            if qty:
-                descriptions.append(f'Qty: {qty}')
+            # Suppress "Qty: N" — not useful for display
+            # qty = f.get('qty', '')
+            # if qty:
+            #     descriptions.append(f'Qty: {qty}')
         obj.format_details = ', '.join(descriptions) if descriptions else None
 
 

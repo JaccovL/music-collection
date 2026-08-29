@@ -437,12 +437,129 @@ def api_release_detail(release_id):
         'tracks': [{'position': t.position, 'title': t.title, 'duration': t.duration} for t in tracks]
     })
 
+@app.route('/api/random-release')
+@login_required
+def api_random_release():
+    """Return a random release from the current filtered results."""
+    filters = get_request_filters()
+    q = Release.query.options(db.joinedload(Release.artist))
+    q = apply_common_filters(q, **filters)
+    
+    random_release = q.order_by(db.func.random()).first()
+    
+    if not random_release:
+        return jsonify({'error': 'No releases found'}), 404
+    
+    return jsonify({
+        'id': random_release.id,
+        'title': random_release.title,
+        'artist': random_release.artist.name if random_release.artist else 'Unknown',
+        'year': random_release.year,
+        'format': random_release.format,
+        'format_details': random_release.format_details,
+        'style': random_release.style,
+        'label': random_release.label,
+        'catalog_number': random_release.catalog_number,
+        'country': random_release.country,
+        'thumb_url': random_release.thumb_url,
+        'cover_image_url': random_release.cover_image_url,
+        'discogs_id': random_release.discogs_id,
+        'date_added': random_release.date_added.strftime('%Y-%m-%d') if random_release.date_added else '',
+    })
+
 @app.route('/api/health')
 @login_required
 def api_health():
     return jsonify(get_health_status().to_dict())
 
 # ==================== ADMIN / SETTINGS ====================
+
+# Sync lock to prevent concurrent syncs
+_sync_lock = threading.Lock()
+
+@app.route('/admin/reset-collection', methods=['POST'])
+@login_required
+@admin_required
+def reset_collection():
+    """Drop all collection data (releases, artists, tracks, wantlist) and start fresh."""
+    global _sync_lock
+    
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
+    
+    try:
+        # Delete all data
+        Track.query.delete()
+        Release.query.delete()
+        Artist.query.delete()
+        Wantlist.query.delete()
+        UpdateLog.query.delete()
+        db.session.commit()
+        
+        # Invalidate health cache
+        _health_cache.invalidate()
+        
+        return jsonify({'status': 'success', 'message': 'Collection cleared. You can now sync fresh from Discogs.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Reset failed: {e}'}), 500
+    finally:
+        _sync_lock.release()
+
+@app.route('/admin/sync-all', methods=['POST'])
+@login_required
+@admin_required
+def sync_all():
+    """Run collection sync followed by track sync sequentially."""
+    global _sync_lock
+    
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
+    
+    token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
+    username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
+    
+    if not token or not username:
+        _sync_lock.release()
+        return jsonify({'error': 'Discogs credentials not configured'}), 400
+    
+    def do_sync_all(app_instance):
+        try:
+            service = SyncService(token, username)
+            # First: collection sync
+            service.sync_collection(triggered_by='manual', fetch_country=True)
+            # Then: track sync for any releases without tracks
+            releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
+            if releases:
+                client = DiscogsClient(token, username)
+                total = len(releases)
+                logger.info(f"Syncing tracks for {total} releases")
+                for i, release in enumerate(releases):
+                    try:
+                        data = client.get_release(release.discogs_id)
+                        if data:
+                            tracklist = data.get('tracklist', [])
+                            if tracklist:
+                                Track.query.filter_by(release_id=release.id).delete()
+                                db.session.flush()
+                                for t in tracklist:
+                                    track = Track(release_id=release.id, position=t.get('position', ''),
+                                                  title=t.get('title', ''), duration=t.get('duration', ''))
+                                    db.session.add(track)
+                                db.session.commit()
+                        if (i+1) % 50 == 0:
+                            logger.info(f"Track sync: {i+1}/{total}")
+                    except Exception as e:
+                        logger.error(f"Failed to fetch tracks for {release.discogs_id}: {e}")
+                        db.session.rollback()
+                logger.info("Track sync complete")
+        except Exception as e:
+            logger.error(f"Sync all failed: {e}")
+        finally:
+            _sync_lock.release()
+    
+    threading.Thread(target=do_sync_all, args=(app,)).start()
+    return jsonify({'status': 'started', 'message': 'Collection sync started, track sync will follow automatically.'})
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
@@ -597,15 +714,24 @@ def admin_health():
 @login_required
 @admin_required
 def trigger_sync():
+    global _sync_lock
+    
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
+    
     token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
     username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
     
     if not token or not username:
+        _sync_lock.release()
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
     def do_sync(app_instance):
-        service = SyncService(token, username)
-        service.sync_collection(triggered_by='manual', fetch_country=True)
+        try:
+            service = SyncService(token, username)
+            service.sync_collection(triggered_by='manual', fetch_country=True)
+        finally:
+            _sync_lock.release()
     
     _run_in_background(do_sync)
     return jsonify({'status': 'started'})
@@ -614,46 +740,62 @@ def trigger_sync():
 @login_required
 @admin_required
 def trigger_track_sync():
+    global _sync_lock
+    
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
+    
     log = UpdateLog(sync_type='track', status='running', triggered_by='manual')
     db.session.add(log)
     db.session.commit()
     
     def do_track_sync(app_instance):
-        token = get_setting('discogs_token', '') or app_instance.config.get('DISCOGS_TOKEN', '')
-        username = get_setting('discogs_username', '') or app_instance.config.get('DISCOGS_USERNAME', '')
-        if not token or not username:
-            return
-        
-        client = DiscogsClient(token, username)
-        releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
-        total = len(releases)
-        logger.info(f"Fetching tracks for {total} releases")
-        
-        for i, release in enumerate(releases):
-            try:
-                data = client.get_release(release.discogs_id)
-                if data:
-                    tracklist = data.get('tracklist', [])
-                    if tracklist:
-                        Track.query.filter_by(release_id=release.id).delete()
-                        db.session.flush()
-                        for t in tracklist:
-                            track = Track(release_id=release.id, position=t.get('position', ''), title=t.get('title', ''), duration=t.get('duration', ''))
-                            db.session.add(track)
-                        db.session.commit()
-                if (i+1) % 50 == 0:
-                    logger.info(f"Track sync: {i+1}/{total}")
-            except Exception as e:
-                logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
-                db.session.rollback()
-        
-        log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
-        if log_entry:
-            log_entry.status = 'success'
-            log_entry.finished_at = datetime.utcnow()
-            db.session.commit()
-        
-        logger.info("Track sync complete")
+        try:
+            token = get_setting('discogs_token', '') or app_instance.config.get('DISCOGS_TOKEN', '')
+            username = get_setting('discogs_username', '') or app_instance.config.get('DISCOGS_USERNAME', '')
+            if not token or not username:
+                return
+            
+            client = DiscogsClient(token, username)
+            releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
+            total = len(releases)
+            logger.info(f"Fetching tracks for {total} releases")
+            
+            for i, release in enumerate(releases):
+                try:
+                    data = client.get_release(release.discogs_id)
+                    if data:
+                        tracklist = data.get('tracklist', [])
+                        if tracklist:
+                            Track.query.filter_by(release_id=release.id).delete()
+                            db.session.flush()
+                            for t in tracklist:
+                                track = Track(release_id=release.id, position=t.get('position', ''), title=t.get('title', ''), duration=t.get('duration', ''))
+                                db.session.add(track)
+                            db.session.commit()
+                    if (i+1) % 50 == 0:
+                        logger.info(f"Track sync: {i+1}/{total}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
+                    db.session.rollback()
+            
+            log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+            if log_entry:
+                log_entry.status = 'success'
+                log_entry.finished_at = datetime.utcnow()
+                db.session.commit()
+            
+            logger.info("Track sync complete")
+        except Exception as e:
+            logging.error(f"Track sync failed: {e}")
+            log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+            if log_entry:
+                log_entry.status = 'error'
+                log_entry.error_message = str(e)
+                log_entry.finished_at = datetime.utcnow()
+                db.session.commit()
+        finally:
+            _sync_lock.release()
     
     _run_in_background(do_track_sync)
     return jsonify({'status': 'started'})
@@ -662,15 +804,24 @@ def trigger_track_sync():
 @login_required
 @admin_required
 def trigger_wantlist_sync():
+    global _sync_lock
+    
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
+    
     token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
     username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
     
     if not token or not username:
+        _sync_lock.release()
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
     def do_wantlist_sync(app_instance):
-        service = SyncService(token, username)
-        service.sync_wantlist(triggered_by='manual')
+        try:
+            service = SyncService(token, username)
+            service.sync_wantlist(triggered_by='manual')
+        finally:
+            _sync_lock.release()
     
     _run_in_background(do_wantlist_sync)
     return jsonify({'status': 'started'})
@@ -733,6 +884,123 @@ def wantlist():
 def wantlist_detail(item_id):
     item = Wantlist.query.get_or_404(item_id)
     return render_template('wantlist_detail.html', item=item)
+
+# ==================== QUICK ADD ====================
+
+@app.route('/admin/quick-add', methods=['POST'])
+@login_required
+@admin_required
+def quick_add():
+    """Add a release to the collection by Discogs URL or release ID."""
+    import re
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    url = data.get('url', '').strip()
+    release_id = data.get('release_id', '').strip()
+    
+    # Extract release ID from URL if provided
+    if url:
+        # Match patterns like:
+        # https://www.discogs.com/release/123456
+        # https://www.discogs.com/release/123456-some-title
+        # https://www.discogs.com/s/release/123456
+        match = re.search(r'/release/(\d+)', url)
+        if match:
+            release_id = match.group(1)
+        else:
+            return jsonify({'error': 'Could not extract release ID from URL. Expected format: https://www.discogs.com/release/...'}), 400
+    
+    if not release_id:
+        return jsonify({'error': 'No release ID provided'}), 400
+    
+    try:
+        release_id = int(release_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid release ID'}), 400
+    
+    # Check if already in collection
+    existing = Release.query.filter_by(discogs_id=release_id).first()
+    if existing:
+        return jsonify({'error': 'Release already in collection', 'release_id': existing.id}), 409
+    
+    # Fetch from Discogs
+    token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
+    username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
+    
+    if not token or not username:
+        return jsonify({'error': 'Discogs credentials not configured'}), 400
+    
+    client = DiscogsClient(token, username)
+    data = client.get_release(release_id)
+    
+    if not data:
+        return jsonify({'error': 'Failed to fetch release from Discogs'}), 500
+    
+    # Parse artist
+    artists_data = data.get('artists', [])
+    if not artists_data:
+        return jsonify({'error': 'No artist data found'}), 500
+    
+    artist_data = artists_data[0]
+    artist_id = artist_data.get('id')
+    artist_name = artist_data.get('name', 'Unknown Artist')
+    
+    # Get or create artist
+    artist = Artist.query.filter_by(discogs_id=artist_id).first()
+    if not artist:
+        artist = Artist(discogs_id=artist_id, name=artist_name)
+        db.session.add(artist)
+        db.session.flush()
+    
+    # Create release
+    release = Release(
+        discogs_id=release_id,
+        title=data.get('title', 'Unknown'),
+        artist_id=artist.id,
+        folder_id=0  # Default folder
+    )
+    db.session.add(release)
+    db.session.flush()
+    
+    # Update fields from Discogs data
+    from sync_service import _update_format, _update_images
+    _update_format(release, data)
+    _update_images(release, data)
+    release.style = ', '.join(data.get('styles', [])) if data.get('styles') else None
+    release.year = data.get('year')
+    
+    labels = data.get('labels', [])
+    if labels:
+        release.label = labels[0].get('name')
+        release.catalog_number = labels[0].get('catno')
+    
+    release.country = data.get('country')
+    release.date_added = datetime.utcnow()
+    
+    # Fetch tracklist
+    tracklist = data.get('tracklist', [])
+    if tracklist:
+        for t in tracklist:
+            track = Track(
+                release_id=release.id,
+                position=t.get('position', ''),
+                title=t.get('title', ''),
+                duration=t.get('duration', '')
+            )
+            db.session.add(track)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'release_id': release.id,
+        'title': release.title,
+        'artist': artist.name,
+        'discogs_id': release_id
+    })
 
 # ==================== EXPORT ====================
 

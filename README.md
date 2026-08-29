@@ -26,6 +26,16 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v1.5.1 (2026-08-29)
+- **🎲 Random Release Picker** — Button in search bar picks a random release from current filtered results
+- **➕ Quick Add by Discogs URL/ID** — Modal to paste a Discogs URL or ID and instantly add to collection
+- **⚠️ Missing Tracks Indicator** — Releases without tracklists show ⚠️ instead of track count
+- **🔄 Sync All (Collection + Tracks)** — One button runs collection sync then track sync sequentially
+- **🗑️ Reset Collection** — Danger Zone with double-confirmation to delete all data and start fresh
+- **🔒 Sync Lock** — Prevents concurrent syncs (only one sync at a time)
+- **System theme preference** — First visit follows OS dark/light mode preference
+- **"Qty: N" suppressed** — Removed quantity info from format display
+
 ### v1.4.0 (2026-08-29)
 - **Enhanced Health Checks** — Two-level MariaDB check (socket + query) for real failure detection
 - **Code Optimization** — Extracted background thread helper, image/format helpers, fixed duplicate route
