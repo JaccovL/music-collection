@@ -26,15 +26,17 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
-### v1.5.5 (2026-08-29)
+### v2.0.0 (2026-08-30)
 - **🎲 Random Release Picker** — Button in search bar picks a random release from current filtered results
 - **⚠️ Missing Tracks Indicator** — Releases without tracklists show ⚠️ instead of track count
 - **🔄 Sync All (Collection + Tracks)** — One button runs collection sync then track sync sequentially
 - **🗑️ Reset Collection** — Danger Zone with double-confirmation to delete all data and start fresh
 - **🔒 Sync Lock** — Prevents concurrent syncs (only one sync at a time)
+- **📊 Progress Bar** — Sync status page shows visual progress bar for track sync completion
 - **🌓 System Theme Preference** — First visit follows OS dark/light mode
+- **Enhanced Health Checks** — Two-level MariaDB check (socket + query)
 - **Format: "Qty: N" suppressed** — Removed quantity info from format display
-- **Bug Fixes** — Fixed random release button, removed duplicate route, fixed local_fallback setting
+- **Code Optimization** — Extracted helpers, fixed duplicate route, consolidated settings
 
 ### v1.4.0 (2026-08-29)
 - **Enhanced Health Checks** — Two-level MariaDB check (socket + query)
