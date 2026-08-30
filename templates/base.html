@@ -10,9 +10,13 @@
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="nav-brand">🎵 Music Collection</a>
-            <div class="nav-links">
-                <a href="{{ url_for('search') }}">Search</a>
+            <div class="nav-left">
+                <a href="{{ url_for('search') }}" class="{% if request.endpoint == 'search' %}active{% endif %}">Collection</a>
+                {% if get_setting('wantlist_enabled', 'false') == 'true' %}
+                <a href="{{ url_for('wantlist') }}" class="{% if request.endpoint == 'wantlist' or request.endpoint == 'wantlist_detail' %}active{% endif %}">Wantlist</a>
+                {% endif %}
+            </div>
+            <div class="nav-right">
                 {% if current_user.is_admin %}
                 <div class="dropdown" id="settings-dropdown">
                     <button class="dropdown-toggle" onclick="toggleDropdown()">
@@ -20,11 +24,13 @@
                         <span class="dropdown-arrow">▾</span>
                     </button>
                     <div class="dropdown-menu">
+                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
                         <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
                         <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
+                        <a href="{{ url_for('admin_statistics') }}">Collection Statistics</a>
                         <a href="{{ url_for('admin_health') }}">Health Check</a>
-                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
                         <a href="#" class="theme-toggle" id="theme-toggle" onclick="toggleTheme(); return false;">🌙 Dark</a>
+                        <a href="https://github.com/JaccovL/music-collection#version-history" target="_blank" rel="noopener noreferrer">About</a>
                     </div>
                 </div>
                 {% endif %}
@@ -43,10 +49,12 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
+            {% if category != 'success' %}
             <div class="flash flash-{{ category }}">
                 {{ message }}
                 <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}

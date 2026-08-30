@@ -9,12 +9,21 @@
     <section class="settings-section">
         <h2>System Status</h2>
         <div class="health-grid">
-            <!-- MariaDB -->
+            <!-- MariaDB Socket -->
             <div class="health-card {% if status.mariadb_ok %}ok{% else %}error{% endif %}">
                 <div class="health-icon">{% if status.mariadb_ok %}✓{% else %}✗{% endif %}</div>
                 <div class="health-info">
-                    <h3>MariaDB</h3>
-                    <p>{% if status.mariadb_ok %}Connected{% else %}{{ status.mariadb_error }}{% endif %}</p>
+                    <h3>MariaDB Socket</h3>
+                    <p>{% if status.mariadb_ok %}Port reachable{% else %}{{ status.mariadb_error }}{% endif %}</p>
+                </div>
+            </div>
+            
+            <!-- MariaDB Query -->
+            <div class="health-card {% if status.mariadb_query_ok %}ok{% else %}error{% endif %}">
+                <div class="health-icon">{% if status.mariadb_query_ok %}✓{% else %}✗{% endif %}</div>
+                <div class="health-info">
+                    <h3>MariaDB Query</h3>
+                    <p>{% if status.mariadb_query_ok %}Query OK{% else %}{{ status.mariadb_query_error }}{% endif %}</p>
                 </div>
             </div>
             
@@ -35,11 +44,11 @@
                 </div>
             </div>
             
-            <!-- Local Fallback -->
+            <!-- Local Admin Login -->
             <div class="health-card {% if status.local_fallback_enabled %}ok{% else %}warning{% endif %}">
                 <div class="health-icon">{% if status.local_fallback_enabled %}✓{% else %}!{% endif %}</div>
                 <div class="health-info">
-                    <h3>Local Fallback</h3>
+                    <h3>Local Admin Login</h3>
                     <p>{% if status.local_fallback_enabled %}Enabled{% else %}Disabled{% endif %}</p>
                 </div>
             </div>

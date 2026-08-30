@@ -57,15 +57,40 @@ class Track(db.Model):
     title = db.Column(db.String(500), nullable=False)
     duration = db.Column(db.String(20))
 
+class Wantlist(db.Model):
+    __tablename__ = 'wantlist'
+    id = db.Column(db.Integer, primary_key=True)
+    discogs_id = db.Column(db.Integer, unique=True, nullable=False)
+    title = db.Column(db.String(500), nullable=False, index=True)
+    artist_name = db.Column(db.String(500), index=True)
+    artist_id = db.Column(db.Integer)
+    year = db.Column(db.Integer, index=True)
+    format = db.Column(db.String(200))
+    format_details = db.Column(db.Text)
+    genre = db.Column(db.String(200), index=True)
+    style = db.Column(db.String(500))
+    label = db.Column(db.String(300), index=True)
+    catalog_number = db.Column(db.String(100))
+    country = db.Column(db.String(100))
+    thumb_url = db.Column(db.String(1000))
+    cover_image_url = db.Column(db.String(1000))
+    notes = db.Column(db.Text)
+    date_added = db.Column(db.DateTime)
+    rating = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class UpdateLog(db.Model):
     __tablename__ = 'update_log'
     id = db.Column(db.Integer, primary_key=True)
+    sync_type = db.Column(db.String(20), default='collection')  # collection, track
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     finished_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='running')  # running, success, error
     releases_added = db.Column(db.Integer, default=0)
     releases_updated = db.Column(db.Integer, default=0)
     artists_added = db.Column(db.Integer, default=0)
+    tracks_added = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text)
     triggered_by = db.Column(db.String(20))  # cron, manual
 

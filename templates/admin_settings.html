@@ -8,14 +8,35 @@
     <form method="POST" class="settings-form" id="settings-form">
         <section class="settings-section">
             <h2>Discogs Integration</h2>
-            <div class="form-group">
-                <label for="discogs_username">Discogs Username</label>
-                <input type="text" id="discogs_username" name="discogs_username" value="{{ settings.discogs_username }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="discogs_username">Discogs Username</label>
+                    <input type="text" id="discogs_username" name="discogs_username" value="{{ settings.discogs_username }}">
+                </div>
+                <div class="form-group">
+                    <label for="discogs_token">Discogs API Token</label>
+                    <input type="password" id="discogs_token" name="discogs_token" value="{{ settings.discogs_token }}">
+                </div>
             </div>
+            <small>Get token from <a href="https://www.discogs.com/settings/developers" target="_blank">discogs.com/settings/developers</a></small>
+        </section>
+        
+        <section class="settings-section">
+            <h2>Sync Schedule</h2>
             <div class="form-group">
-                <label for="discogs_token">Discogs API Token</label>
-                <input type="password" id="discogs_token" name="discogs_token" value="{{ settings.discogs_token }}">
-                <small>Get from <a href="https://www.discogs.com/settings/developers" target="_blank">discogs.com/settings/developers</a></small>
+                <label for="update_interval_hours">Update Interval (hours)</label>
+                <input type="number" id="update_interval_hours" name="update_interval_hours" value="{{ settings.update_interval_hours }}" min="1" max="168">
+            </div>
+        </section>
+        
+        <section class="settings-section">
+            <h2>Features</h2>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="wantlist_enabled" {% if settings.wantlist_enabled == 'true' %}checked{% endif %}>
+                    Enable Wantlist
+                </label>
+                <small>Show Wantlist page and sync from Discogs wantlist</small>
             </div>
         </section>
         
@@ -100,15 +121,7 @@
                     <input type="checkbox" name="local_fallback" {% if settings.local_fallback == 'true' %}checked{% endif %}>
                     Allow local admin login when LDAP is unavailable
                 </label>
-                <small>If enabled, admin can always log in with local credentials when LDAP is down</small>
-            </div>
-        </section>
-        
-        <section class="settings-section">
-            <h2>Sync Schedule</h2>
-            <div class="form-group">
-                <label for="update_interval_hours">Update Interval (hours)</label>
-                <input type="number" id="update_interval_hours" name="update_interval_hours" value="{{ settings.update_interval_hours }}" min="1" max="168">
+                <small>Admin can always log in with local credentials when LDAP is down</small>
             </div>
         </section>
         

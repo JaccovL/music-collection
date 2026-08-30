@@ -2,11 +2,17 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system deps for python-ldap
+# Install system deps for python-ldap and weasyprint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libldap2-dev \
     libsasl2-dev \
     gcc \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

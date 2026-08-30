@@ -16,21 +16,55 @@
                     <p style="color: var(--text-muted); font-size: 0.85rem;">{{ sync_log.finished_at.strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
                 {% elif sync_log.status == 'error' %}
                     <p><span class="sync-dot error"></span> Failed — {{ sync_log.error_message or 'Unknown error' }}</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ sync_log.finished_at.strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
                 {% endif %}
             {% else %}
                 <p><span class="sync-dot idle"></span> Never run</p>
             {% endif %}
         </div>
-        <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
+            <button id="sync-all-btn" class="btn btn-primary" onclick="triggerSyncAll()">🔄 Sync All (Collection + Tracks)</button>
+        </div>
     </section>
     
     <section class="settings-section">
         <h2>Track Sync</h2>
         <div id="track-sync-status">
-            <p>Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
-            <p style="color: var(--text-muted);">{{ releases_without_tracks }} remaining</p>
+            {% if track_sync_status == 'running' %}
+                <p><span class="sync-dot running"></span> Syncing tracks...</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">This may take a while (~100 releases/min). You can leave this page.</p>
+            {% elif track_sync_status == 'success' %}
+                <p><span class="sync-dot success"></span> Synced — Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
+                <div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: {{ (releases_with_tracks / total_releases * 100) if total_releases else 0 }}%"></div></div>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">{{ track_sync_finished }}</p>
+            {% elif track_sync_status == 'error' %}
+                <p><span class="sync-dot error"></span> Failed — {{ track_sync_error or 'Unknown error' }}</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">{{ track_sync_finished }}</p>
+            {% else %}
+                <p><span class="sync-dot idle"></span> Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
+                <div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: {{ (releases_with_tracks / total_releases * 100) if total_releases else 0 }}%"></div></div>
+                <p style="color: var(--text-muted);">{{ releases_without_tracks }} remaining</p>
+                {% if track_sync_finished %}<p style="color: var(--text-muted); font-size: 0.85rem;">Last sync: {{ track_sync_finished }}</p>{% endif %}
+            {% endif %}
         </div>
         <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
+    </section>
+    
+    {% if get_setting('wantlist_enabled', 'false') == 'true' %}
+    <section class="settings-section">
+        <h2>Wantlist Sync</h2>
+        <div id="wantlist-sync-status">
+            <p><span class="sync-dot idle"></span> Waiting...</p>
+        </div>
+        <button id="wantlist-sync-btn" class="btn btn-primary" onclick="triggerWantlistSync()">Sync Wantlist Now</button>
+    </section>
+    {% endif %}
+
+    <section class="settings-section">
+        <h2>Danger Zone</h2>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Permanently delete all collection data and start fresh. This cannot be undone.</p>
+        <button id="reset-btn" class="btn" style="background: #d32f2f; color: #fff; border-color: #d32f2f;" onclick="confirmReset()">🗑️ Reset Collection</button>
     </section>
     
     <section class="settings-section">
@@ -43,6 +77,65 @@
 
 {% block scripts %}
 <script>
+function formatTimestamp(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString();
+}
+
+function triggerSyncAll() {
+    const btn = document.getElementById('sync-all-btn');
+    const status = document.getElementById('sync-log-status');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    status.innerHTML = '<p><span class="sync-dot running"></span> Starting collection sync...</p>';
+    
+    fetch('{{ url_for("sync_all") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${data.error}</p>`;
+            } else {
+                status.innerHTML = '<p><span class="sync-dot running"></span> Collection sync started, track sync will follow...</p>';
+            }
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync All (Collection + Tracks)';
+        })
+        .catch(err => {
+            status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${err}</p>`;
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync All (Collection + Tracks)';
+        });
+}
+
+function confirmReset() {
+    if (confirm('⚠️ WARNING: This will permanently DELETE all releases, artists, tracks, and sync history from your database.\n\nThis cannot be undone. Are you sure?')) {
+        if (confirm('Last chance! Really delete everything?')) {
+            const btn = document.getElementById('reset-btn');
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+            
+            fetch('{{ url_for("reset_collection") }}', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        btn.disabled = false;
+                        btn.textContent = '🗑️ Reset Collection';
+                    } else {
+                        alert(data.message);
+                        location.reload();
+                    }
+                })
+                .catch(err => {
+                    alert('Error: ' + err);
+                    btn.disabled = false;
+                    btn.textContent = '🗑️ Reset Collection';
+                });
+        }
+    }
+}
+
 function triggerSync() {
     const btn = document.getElementById('sync-btn');
     const status = document.getElementById('sync-log-status');
@@ -92,6 +185,30 @@ function triggerTrackSync() {
         });
 }
 
+function triggerWantlistSync() {
+    const btn = document.getElementById('wantlist-sync-btn');
+    const status = document.getElementById('wantlist-sync-status');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    
+    fetch('{{ url_for("trigger_wantlist_sync") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${data.error}</p>`;
+            } else {
+                status.innerHTML = '<p><span class="sync-dot running"></span> Wantlist sync started...</p>';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Sync Wantlist Now';
+        })
+        .catch(err => {
+            status.innerHTML = `<p><span class="sync-dot error"></span> Error: ${err}</p>`;
+            btn.disabled = false;
+            btn.textContent = 'Sync Wantlist Now';
+        });
+}
+
 // Poll sync status every 10 seconds
 function pollSyncStatus() {
     fetch('{{ url_for("sync_status") }}')
@@ -108,7 +225,8 @@ function pollSyncStatus() {
                 const last = data.finished_at ? new Date(data.finished_at).toLocaleString() : '';
                 container.innerHTML = `<p><span class="sync-dot success"></span> Synced — Added: ${data.releases_added}, Updated: ${data.releases_updated}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
             } else if (data.status === 'error') {
-                container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p>`;
+                const last = data.finished_at ? new Date(data.finished_at).toLocaleString() : '';
+                container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
             }
         });
     
@@ -118,14 +236,63 @@ function pollSyncStatus() {
             const container = document.getElementById('track-sync-status');
             if (!container) return;
             
-            container.innerHTML = `
-                <p>Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>
-                <p style="color: var(--text-muted);">${data.releases_without_tracks} remaining</p>
-            `;
+            const pct = data.total_releases ? Math.round(data.releases_with_tracks / data.total_releases * 100) : 0;
+            
+            if (data.status === 'never_run' || !data.status) {
+                let html = `<p><span class="sync-dot idle"></span> Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>`;
+                html += `<div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: ${pct}%"></div></div>`;
+                html += `<p style="color: var(--text-muted);">${data.releases_without_tracks} remaining</p>`;
+                if (data.finished_at) {
+                    html += `<p style="color: var(--text-muted); font-size: 0.85rem;">Last sync: ${formatTimestamp(data.finished_at)}</p>`;
+                }
+                container.innerHTML = html;
+            } else if (data.status === 'running') {
+                container.innerHTML = '<p><span class="sync-dot running"></span> Syncing tracks...</p><p style="color: var(--text-muted); font-size: 0.85rem;">This may take a while (~100 releases/min). You can leave this page.</p>';
+            } else if (data.status === 'success') {
+                const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
+                let html = `<p><span class="sync-dot success"></span> Synced — Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>`;
+                html += `<div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: ${pct}%"></div></div>`;
+                html += `<p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+                container.innerHTML = html;
+            } else if (data.status === 'error') {
+                const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
+                container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+            }
+        });
+}
+
+// Poll wantlist sync status every 10 seconds
+function pollWantlistSyncStatus() {
+    fetch('{{ url_for("wantlist_sync_status") }}')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('wantlist-sync-status');
+            if (!container) return;
+            
+            if (data.status === 'never_run' || !data.status) {
+                let html = `<p><span class="sync-dot idle"></span> Items in wantlist: <strong>${data.total_wants || 0}</strong></p>`;
+                if (data.finished_at) {
+                    html += `<p style="color: var(--text-muted); font-size: 0.85rem;">${formatTimestamp(data.finished_at)}</p>`;
+                }
+                container.innerHTML = html;
+            } else if (data.status === 'running') {
+                container.innerHTML = '<p><span class="sync-dot running"></span> Syncing...</p>';
+            } else if (data.status === 'success') {
+                const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
+                container.innerHTML = `<p><span class="sync-dot success"></span> Synced — Added: ${data.added || 0}, Updated: ${data.updated || 0}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+            } else if (data.status === 'error') {
+                const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
+                container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+            }
         });
 }
 
 pollSyncStatus();
 setInterval(pollSyncStatus, 10000);
+
+{% if get_setting('wantlist_enabled', 'false') == 'true' %}
+pollWantlistSyncStatus();
+setInterval(pollWantlistSyncStatus, 10000);
+{% endif %}
 </script>
 {% endblock %}
