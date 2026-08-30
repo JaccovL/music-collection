@@ -26,113 +26,37 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
-### v1.5.3 (2026-08-29)
-- **Bugfix: Random Release button** — Fixed showDetail() to fetch from API when release isn't on current page
-
-### v1.5.2 (2026-08-29)
-- **Bugfix: Sync All** — Fixed database error caused by missing app context in background thread
-- **Removed Quick Add** — Discogs is the leading source for collection data
-
-### v1.5.1 (2026-08-29)
+### v1.5.5 (2026-08-29)
 - **🎲 Random Release Picker** — Button in search bar picks a random release from current filtered results
-- **➕ Quick Add by Discogs URL/ID** — Modal to paste a Discogs URL or ID and instantly add to collection
 - **⚠️ Missing Tracks Indicator** — Releases without tracklists show ⚠️ instead of track count
 - **🔄 Sync All (Collection + Tracks)** — One button runs collection sync then track sync sequentially
 - **🗑️ Reset Collection** — Danger Zone with double-confirmation to delete all data and start fresh
 - **🔒 Sync Lock** — Prevents concurrent syncs (only one sync at a time)
-- **System theme preference** — First visit follows OS dark/light mode preference
-- **"Qty: N" suppressed** — Removed quantity info from format display
+- **🌓 System Theme Preference** — First visit follows OS dark/light mode
+- **Format: "Qty: N" suppressed** — Removed quantity info from format display
+- **Bug Fixes** — Fixed random release button, removed duplicate route, fixed local_fallback setting
 
 ### v1.4.0 (2026-08-29)
-- **Enhanced Health Checks** — Two-level MariaDB check (socket + query) for real failure detection
-- **Code Optimization** — Extracted background thread helper, image/format helpers, fixed duplicate route
-- **Documentation** — Added 6 missing API endpoints, fixed project structure, completed configuration table
+- **Enhanced Health Checks** — Two-level MariaDB check (socket + query)
+- **Code Optimization** — Extracted helpers, fixed duplicate route, reduced app.py by 21%
+- **Documentation** — Added missing API endpoints, fixed project structure
 
 ### v1.3.5 (2026-08-29)
-- **Removed Genre column** — Genre filter and column removed from Collection and Wantlist pages
-- **Format column filtering** — Format now shows only first 3 comma-separated values (combines format + format_details)
-  - Example: `Vinyl, 12", 45 RPM, Maxi-Single, Stereo, Qty: 1` → `Vinyl, 12", 45 RPM…`
-- **Backend cleanup** — Removed genre references from filters, API responses, and template context
-- **Wantlist equality** — Both pages maintain identical column structure
-
-### v1.3.4 (2026-08-29)
-- **Code Cleanup** — Optimized and cleaned the codebase
-  - Extracted reusable helpers (get_request_filters, apply_common_filters, export_to_csv, export_to_pdf)
-  - Removed duplicate filter and export logic between Collection and Wantlist
-  - Consolidated settings POST handling
-  - Reduced app.py from 1,141 to 900 lines (-21%)
-
-### v1.3.3 (2026-08-28)
-- **Export (CSV/PDF)** — Export filtered results from Collection and Wantlist pages
-  - CSV export with all relevant columns
-  - PDF export in portrait format, ~50 rows per page
-  - Great for insurance, sharing, or offline reference
-- **Collection Statistics** — Renamed from "Statistics" in menu and docs
-- **Country Backfill** — Background job to fetch country data for all releases
-- **Country in Sync** — Future syncs automatically fetch country for new releases
-- **Bug Fixes** — Year range excludes year=0 (unknown), decade chart fixed
-- **Bug Fixes** — Pie chart labels truncated to prevent overflow
-- **API** — `/export/csv` and `/export/pdf` endpoints
-
-### v1.3.2 (2026-08-28)
-- **Statistics Dashboard** — Visual breakdowns of your collection with pie/bar charts
-  - Summary cards: releases, artists, tracks, year range, avg tracks, top genre
-  - Genre chart (doughnut), Format chart (pie), Decade chart (bar)
-  - Country chart (horizontal bar), Label chart (horizontal bar)
-- **Country Backfill** — Background job to fetch country data for all releases (Discogs API)
-- **Country in Sync** — Future syncs now automatically fetch country for new releases
-- **Bug Fixes** — Year range now excludes year=0 (unknown), decade chart fixed
-- **Bug Fixes** — Pie chart labels truncated to prevent overflow
-- **API** — `/admin/statistics` page and `/admin/statistics-api/<type>` endpoint
-
-### v1.3.1 (2026-08-28)
-- **Settings Page** — More compact layout with reduced padding and margins
-- **Settings Page** — Discogs Username and Token fields side by side
-- **Settings Page** — Sync Schedule and Features sections moved to top
-- **Settings Page** — Wantlist toggle hides/shows Wantlist nav link and sync options
-- **Bug Fixes** — Filter box widths now explicit (100px) so they're identical on both pages
-- **Bug Fixes** — Year filter placeholders show "1900" and "2024" for clarity
-- **UI Improvements** — Help renamed to About in Settings dropdown
+- **Removed Genre column** — Genre filter and column removed from Collection and Wantlist
+- **Format column filtering** — Shows only first 3 comma-separated values
 
 ### v1.3.0 (2026-08-28)
-- **Wantlist** — New Wantlist page synced from Discogs wantlist
-  - Browse, search, and filter your wantlist items
-  - Same layout as Collection page (table/card views, filters, pagination)
-  - Detail modal with cover image and tracklist (fetched from Discogs API)
-  - Separate sync process with status on Sync Status page
-- **Navigation** — Renamed "Search" to "Collection", added "Wantlist" link
+- **Wantlist** — Separate page synced from Discogs wantlist
+- **Navigation** — Renamed "Search" to "Collection", added Wantlist link
 - **Filter Bar** — Removed Country dropdown, all filters on one line
-- **Thumbnail Links** — Clicking thumbnail opens Discogs release in new tab
-- **UI Improvements** — White nav links, compact year inputs, no filter scrollbar
-
-### v1.2.3 (2026-08-28)
-- **Code Optimization** — Refactored app.py to reduce duplication (get_health_status helper)
-- **Help Button** — Added Help link in Settings dropdown to GitHub release notes
-- **Bug Fixes** — Fixed Reset button alignment, search rendering on single page
-- **Documentation** — Added database setup instructions, size estimates, password change guide
-- **Security** — Added .gitignore, removed __pycache__, placeholder token in .env.example
-
-### v1.2.2 (2026-08-28)
-- **Search Discogs** — New button to search directly on Discogs.com (no API key needed)
-- **Enter Key Support** — Press Enter in search bar to trigger search
-- **Track Title Search** — Search now includes track titles
-
-### v1.2.1 (2026-08-28)
-- **Search Rendering Fix** — Fixed JS error preventing table from rendering
-- **Cosmetic** — Reset button aligned with other buttons
 
 ### v1.2.0 (2026-08-28)
-- **Health Checks** — MariaDB and LDAP connectivity monitoring
-- **Database Statistics** — Modern dashboard redesign
-- **Track Sync** — Mirrors Collection Sync with status and timestamp
-- **Cover Image** — Shows in detail modal with thumb fallback
-- **Local Admin Login** — Configurable fallback when LDAP unavailable
+- **Health Checks** — MariaDB and LDAP monitoring
+- **Database Stats** — Modern dashboard with visual bar chart
+- **Track Sync** — Separate sync with status and timestamp
 
 ### v1.1.0 (2026-08-27)
 - **Filter Cache** — 5-minute cache for filter options
-
-### v1.0.1 (2026-08-26)
-- **Cosmetic** — Theme toggle in dropdown, sync badge right aligned
 
 ### v1.0.0 (2026-08-26)
 - **Initial Release** — Flask + MariaDB + Discogs API
