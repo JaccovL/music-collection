@@ -26,6 +26,11 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.0.2 (2026-08-30)
+- **Post-Sync Verification** — Automatic check for missing country, tracks, cover images after sync
+- **Auto-fix missing data** — Fetches missing fields from Discogs API automatically
+- **Flash notifications** — Alerts when missing data detected, success when verified
+
 ### v2.0.1 (2026-08-30)
 - **Bug Fixes** — Fixed flash message display (success messages were hidden), fixed statistics dashboard (replaced broken genre chart with style chart)
 - **Code Optimization** — Extracted `_sync_tracks_for_releases()` helper to eliminate ~50 lines of duplicated track sync code
