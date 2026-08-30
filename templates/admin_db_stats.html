@@ -6,34 +6,39 @@
     <h1>Database Statistics</h1>
     
     <section class="settings-section">
-        <h2>Database Size</h2>
-        <p>Total size: <strong>{{ "%.2f"|format(total_size) }} MB</strong></p>
+        <h2>Overview</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ "%.1f"|format(total_size) }}</div>
+                <div class="stat-label">Total Size (MB)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tables|length }}</div>
+                <div class="stat-label">Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tables|sum(attribute=4)|round(0)|int }}</div>
+                <div class="stat-label">Total Rows</div>
+            </div>
+        </div>
     </section>
     
     <section class="settings-section">
-        <h2>Table Details</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Table</th>
-                    <th>Data (MB)</th>
-                    <th>Index (MB)</th>
-                    <th>Total (MB)</th>
-                    <th>Rows</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for table in tables %}
-                <tr>
-                    <td>{{ table[0] }}</td>
-                    <td>{{ table[1] }}</td>
-                    <td>{{ table[2] }}</td>
-                    <td><strong>{{ table[3] }}</strong></td>
-                    <td>{{ table[4]|round(0)|int }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <h2>Table Breakdown</h2>
+        <div class="table-list">
+            {% for table in tables %}
+            <div class="table-row">
+                <div class="table-name">{{ table[0] }}</div>
+                <div class="table-size">
+                    <div class="size-bar">
+                        {% set pct = (table[3] / total_size * 100) if total_size > 0 else 0 %}
+                        <div class="size-fill" style="width: {{ pct }}%"></div>
+                    </div>
+                    <div class="size-text">{{ "%.2f"|format(table[3]) }} MB ({{ table[4]|round(0)|int }} rows)</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </section>
 </div>
 {% endblock %}

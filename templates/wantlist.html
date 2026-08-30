@@ -1,17 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Music Collection{% endblock %}
+{% block title %}Wantlist — Music Collection{% endblock %}
 
 {% block content %}
 <div class="collection-page">
     <!-- Search bar -->
     <div class="search-bar">
         <div class="search-row">
-            <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ query }}" onkeypress="if(event.key==='Enter')applyFilters()">
+            <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
-            <button class="btn" onclick="randomRelease()" title="Pick a random release from current results">🎲 Random</button>
-            <a href="{{ url_for('search') }}" class="btn">Reset</a>
+            <a href="{{ url_for('wantlist') }}" class="btn">Reset</a>
         </div>
         
         <div class="filters-row" id="filters-row">
@@ -48,8 +47,8 @@
             <div class="filter-group filter-group-year">
                 <label>Year</label>
                 <div class="year-inputs">
-                    <input type="number" id="filter-year-from" placeholder="From" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
-                    <input type="number" id="filter-year-to" placeholder="To" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-from" placeholder="1900" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-to" placeholder="2024" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
                 </div>
             </div>
         </div>
@@ -76,15 +75,15 @@
                     <label><input type="checkbox" data-col="style" checked> Style</label>
                     <label><input type="checkbox" data-col="label" checked> Label</label>
                     <label><input type="checkbox" data-col="catalog" checked> Catalog #</label>
+                    <label><input type="checkbox" data-col="rating" checked> Rating</label>
                     <label><input type="checkbox" data-col="date_added" checked> Date Added</label>
-                    <label><input type="checkbox" data-col="tracks" checked> Tracks</label>
                 </div>
             </div>
             
-            <div class="results-count" id="results-count">{{ pagination.total }} releases</div>
+            <div class="results-count" id="results-count">{{ total }} items</div>
             <div class="export-buttons">
-                <button class="btn btn-sm" onclick="exportCSV()" title="Export to CSV">📊 CSV</button>
-                <button class="btn btn-sm" onclick="exportPDF()" title="Export to PDF">📄 PDF</button>
+                <button class="btn btn-sm" onclick="exportWantlistCSV()" title="Export to CSV">📊 CSV</button>
+                <button class="btn btn-sm" onclick="exportWantlistPDF()" title="Export to PDF">📄 PDF</button>
             </div>
         </div>
     </div>
@@ -104,10 +103,9 @@
                         <th class="col-style" data-sort="style"><span>Style</span></th>
                         <th class="col-label" data-sort="label"><span>Label</span></th>
                         <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
+                        <th class="col-rating" data-sort="rating"><span>Rating</span></th>
                         <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
-                        <th class="col-tracks" data-sort="tracks"><span>Tracks</span></th>
-                        <th class="col-view"><span>View</span></th>
-                    </tr>
+                        </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
             </table>
@@ -121,7 +119,7 @@
     <div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h2 id="modal-title">Release Details</h2>
+                <h2 id="modal-title">Wantlist Item</h2>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body" id="modal-body"></div>
@@ -129,30 +127,30 @@
     </div>
     
     <!-- Pagination -->
-    {% if pagination.pages > 1 %}
+    {% if pages > 1 %}
     <div class="pagination">
-        {% if pagination.has_prev %}
-        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.prev_num) }}" class="btn btn-sm">← Prev</a>
+        {% if page > 1 %}
+        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page-1) }}" class="btn btn-sm">← Prev</a>
         {% endif %}
         
         <div class="page-goto">
-            <input type="number" id="goto-page" min="1" max="{{ pagination.pages }}" placeholder="#" class="input-sm">
+            <input type="number" id="goto-page" min="1" max="{{ pages }}" placeholder="#" class="input-sm">
             <button class="btn btn-sm" onclick="gotoPage()">Go</button>
         </div>
         
-        <span class="page-info">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+        <span class="page-info">Page {{ page }} of {{ pages }}</span>
         
         <div class="per-page">
             <select id="per-page" onchange="changePerPage()">
-                <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
-                <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
-                <option value="500" {% if pagination.per_page == 500 %}selected{% endif %}>500</option>
-                <option value="1000" {% if pagination.per_page == 1000 %}selected{% endif %}>1000</option>
+                <option value="48" {% if per_page == 48 %}selected{% endif %}>48</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
             </select>
         </div>
         
-        {% if pagination.has_next %}
-        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.next_num) }}" class="btn btn-sm">Next →</a>
+        {% if page < pages %}
+        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page+1) }}" class="btn btn-sm">Next →</a>
         {% endif %}
     </div>
     {% endif %}
@@ -161,15 +159,13 @@
 
 {% block scripts %}
 <script>
-const releases = {{ releases_json|safe }};
+const items = {{ items_json|safe }};
+const totalPages = {{ pages }};
 
 let currentView = 'table';
-let currentSort = '{{ sort }}';
-let currentOrder = '{{ order }}';
 let columnVisibility = {
     thumb: true, artist: true, title: true, year: true, format: true,
-    style: true, label: true, catalog: true,
-    date_added: true, tracks: true
+    style: true, label: true, catalog: true, rating: true, date_added: true
 };
 
 // Escape HTML
@@ -195,32 +191,34 @@ function renderTable() {
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
     
-    releases.forEach(release => {
+    items.forEach(item => {
         const tr = document.createElement('tr');
         
-        const thumbHtml = release.thumb 
-            ? `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(release.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-table">🎵</div></a>`;
+        const thumbHtml = item.thumb 
+            ? `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(item.thumb)}" alt="" loading="lazy"></a>`
+            : `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-table">🎵</div></a>`;
+        
+        const ratingHtml = item.rating 
+            ? '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating)
+            : '';
         
         tr.innerHTML = `
             <td class="col-thumb"><span class="cell-thumb">${thumbHtml}</span></td>
-            <td class="col-artist"><span class="cell-artist">${escapeHtml(release.artist)}</span></td>
-            <td class="col-title"><span class="cell-title">${escapeHtml(release.title)}</span></td>
-            <td class="col-year">${release.year || ''}</td>
-            <td class="col-format">${escapeHtml(shortFormat(release.format, release.format_details))}</td>
-            <td class="col-style">${escapeHtml(release.style)}</td>
-            <td class="col-label">${escapeHtml(release.label)}</td>
-            <td class="col-catalog">${escapeHtml(release.catalog)}</td>
-            <td class="col-date_added">${release.date_added || ''}</td>
-            <td class="col-tracks"><span class="track-count" data-id="${release.id}" data-discogs="${release.discogs_id}">...</span></td>
-            <td class="col-view"><button class="btn btn-sm" onclick="event.stopPropagation(); showDetail(${release.id})">View</button></td>
+            <td class="col-artist"><span class="cell-artist">${escapeHtml(item.artist)}</span></td>
+            <td class="col-title"><span class="cell-title">${escapeHtml(item.title)}</span></td>
+            <td class="col-year">${item.year || ''}</td>
+            <td class="col-format">${escapeHtml(shortFormat(item.format, item.format_details))}</td>
+            <td class="col-style">${escapeHtml(item.style)}</td>
+            <td class="col-label">${escapeHtml(item.label)}</td>
+            <td class="col-catalog">${escapeHtml(item.catalog)}</td>
+            <td class="col-rating"><span class="rating-stars">${ratingHtml}</span></td>
+            <td class="col-date_added">${item.date_added || ''}</td>
         `;
-        tr.onclick = () => showDetail(release.id);
+        tr.onclick = () => showDetail(item.id);
         tbody.appendChild(tr);
     });
     
     updateColumnVisibility();
-    loadTrackCounts();
 }
 
 // Render cards view
@@ -228,122 +226,81 @@ function renderCards() {
     const container = document.getElementById('cards-view');
     container.innerHTML = '';
     
-    releases.forEach(release => {
+    items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'card';
         
-        const thumbHtml = release.thumb 
-            ? `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(release.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-card">🎵</div></a>`;
+        const thumbHtml = item.thumb 
+            ? `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(item.thumb)}" alt="" loading="lazy"></a>`
+            : `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-card">🎵</div></a>`;
         
         card.innerHTML = `
             <div class="card-cover">${thumbHtml}</div>
             <div class="card-info">
-                <div class="card-artist">${escapeHtml(release.artist)}</div>
-                <div class="card-title">${escapeHtml(release.title)}</div>
+                <div class="card-artist">${escapeHtml(item.artist)}</div>
+                <div class="card-title">${escapeHtml(item.title)}</div>
                 <div class="card-meta">
-                    ${release.year ? `<span>${release.year}</span>` : ''}
-                    ${release.format ? `<span>${escapeHtml(shortFormat(release.format, release.format_details))}</span>` : ''}
+                    ${item.year ? `<span>${item.year}</span>` : ''}
+                    ${item.format ? `<span>${escapeHtml(shortFormat(item.format, item.format_details))}</span>` : ''}
                 </div>
             </div>
         `;
-        card.onclick = () => showDetail(release.id);
+        card.onclick = () => showDetail(item.id);
         container.appendChild(card);
     });
 }
 
 // Show detail modal
-function showDetail(releaseId) {
-    if (releaseId.target) return;
-    const release = releases.find(r => r.id === releaseId);
-    if (!release) {
-        // Release not on current page (e.g. from Random button) — fetch from API
-        fetch(`/api/release-detail/${releaseId}`)
-            .then(r => r.json())
-            .then(data => {
-                const modal = document.getElementById('detail-modal');
-                const title = document.getElementById('modal-title');
-                const body = document.getElementById('modal-body');
-                
-                title.textContent = `${data.artist} - ${data.title}`;
-                
-                const fields = [
-                    ['Discogs ID', data.discogs_id],
-                    ['Year', data.year],
-                    ['Format', shortFormat(data.format, data.format_details)],
-                    ['Style', data.style],
-                    ['Label', data.label],
-                    ['Date Added', data.date_added],
-                    ['Notes', data.notes]
-                ];
-                
-                let html = '';
-                const coverUrl = data.cover_image_url || data.thumb_url;
-                if (coverUrl) {
-                    html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
-                }
-                html += '<div class="modal-details">';
-                fields.forEach(([label, value]) => {
-                    html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
-                });
-                html += '</div>';
-                
-                if (data.tracks && data.tracks.length > 0) {
-                    html += '<h3>Tracklist</h3><table class="modal-tracks">';
-                    data.tracks.forEach(t => {
-                        html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
-                    });
-                    html += '</table>';
-                }
-                
-                body.innerHTML = html;
-                modal.classList.add('open');
-            });
-        return;
-    }
+function showDetail(itemId) {
+    if (itemId.target) return;
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
     
-    fetch(`/api/release-detail/${releaseId}`)
+    const modal = document.getElementById('detail-modal');
+    const title = document.getElementById('modal-title');
+    const body = document.getElementById('modal-body');
+    
+    title.textContent = `${item.artist} - ${item.title}`;
+    
+    const fields = [
+        ['Discogs ID', item.discogs_id],
+        ['Year', item.year],
+        ['Format', shortFormat(item.format, item.format_details)],
+        ['Style', item.style],
+        ['Label', item.label],
+        ['Date Added', item.date_added],
+        ['Notes', item.notes]
+    ];
+    
+    let html = '';
+    const coverUrl = item.cover_image_url || item.thumb;
+    if (coverUrl) {
+        html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
+    }
+    html += '<div class="modal-details">';
+    fields.forEach(([label, value]) => {
+        html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
+    });
+    if (item.rating) {
+        html += `<div class="detail-row"><dt>Rating</dt><dd>${'★'.repeat(item.rating)}${'☆'.repeat(5 - item.rating)}</dd></div>`;
+    }
+    html += '</div>';
+    
+    body.innerHTML = html;
+    modal.classList.add('open');
+    
+    // Fetch tracks from Discogs API
+    fetch(`/api/discogs-release/${item.discogs_id}`)
         .then(r => r.json())
         .then(data => {
-            const modal = document.getElementById('detail-modal');
-            const title = document.getElementById('modal-title');
-            const body = document.getElementById('modal-body');
-            
-            title.textContent = `${release.artist} - ${release.title}`;
-            
-            const fields = [
-                ['Discogs ID', data.discogs_id],
-                ['Year', data.year],
-                ['Format', shortFormat(data.format, data.format_details)],
-                ['Style', data.style],
-                ['Label', data.label],
-                ['Date Added', data.date_added],
-                ['Notes', data.notes]
-            ];
-            
-            let html = '';
-            // Cover image at top (prefer full cover, fallback to thumb)
-            const coverUrl = data.cover_image_url || data.thumb_url;
-            if (coverUrl) {
-                html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
-            }
-            html += '<div class="modal-details">';
-            fields.forEach(([label, value]) => {
-                html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
-            });
-            html += '</div>';
-            
-            // Tracklist
             if (data.tracks && data.tracks.length > 0) {
-                html += '<h3>Tracklist</h3><table class="modal-tracks">';
+                let trackHtml = '<h3>Tracklist</h3><table class="modal-tracks">';
                 data.tracks.forEach(t => {
-                    html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
+                    trackHtml += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
                 });
-                html += '</table>';
+                trackHtml += '</table>';
+                body.innerHTML += trackHtml;
             }
-            
-            body.innerHTML = html;
-            modal.classList.add('open');
         });
 }
 
@@ -359,7 +316,7 @@ function changePerPage() {
     const params = new URLSearchParams(window.location.search);
     params.set('per_page', perPage);
     params.set('page', 1);
-    window.location.href = '/search?' + params.toString();
+    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
 }
 
 // Go to page
@@ -367,22 +324,7 @@ function gotoPage() {
     const page = document.getElementById('goto-page').value;
     const params = new URLSearchParams(window.location.search);
     params.set('page', page);
-    window.location.href = '/search?' + params.toString();
-}
-
-// Random release picker
-function randomRelease() {
-    const params = new URLSearchParams(window.location.search);
-    fetch('/api/random-release?' + params.toString())
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-            } else {
-                showDetail(data.id);
-            }
-        })
-        .catch(err => alert('Failed to get random release: ' + err));
+    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
 }
 
 // Search Discogs (public search, no API key needed)
@@ -393,13 +335,15 @@ function searchDiscogs() {
 }
 
 // Export functions
-function exportCSV() {
+function exportWantlistCSV() {
     const params = new URLSearchParams(window.location.search);
+    params.set('source', 'wantlist');
     window.location.href = '/export/csv?' + params.toString();
 }
 
-function exportPDF() {
+function exportWantlistPDF() {
     const params = new URLSearchParams(window.location.search);
+    params.set('source', 'wantlist');
     window.location.href = '/export/pdf?' + params.toString();
 }
 
@@ -421,7 +365,7 @@ function applyFilters() {
     if (yearTo) params.set('year_to', yearTo);
     if (label) params.set('label', label);
     
-    window.location.href = '{{ url_for("search") }}?' + params.toString();
+    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
 }
 
 // Allow Enter key in goto input
@@ -476,25 +420,6 @@ function updateColumnVisibility() {
     });
 }
 
-// Load track counts (batch for visible releases only)
-function loadTrackCounts() {
-    const visibleReleases = releases.slice(0, 50);
-    visibleReleases.forEach(release => {
-        fetch(`/api/release-tracks/${release.id}`)
-            .then(r => r.json())
-            .then(tracks => {
-                const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
-                if (el) {
-                    if (tracks.length === 0) {
-                        el.innerHTML = '<span class="no-tracks" title="No tracks synced">⚠️</span>';
-                    } else {
-                        el.textContent = tracks.length;
-                    }
-                }
-            });
-    });
-}
-
 // Set view
 function setView(view) {
     currentView = view;
@@ -502,11 +427,11 @@ function setView(view) {
     document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
     document.getElementById('view-table').classList.toggle('active', view === 'table');
     document.getElementById('view-cards').classList.toggle('active', view === 'cards');
-    localStorage.setItem('view', view);
+    localStorage.setItem('wantlist-view', view);
 }
 
 // Load saved view
-const savedView = localStorage.getItem('view');
+const savedView = localStorage.getItem('wantlist-view');
 if (savedView) setView(savedView);
 </script>
 {% endblock %}

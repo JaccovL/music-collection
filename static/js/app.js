@@ -31,7 +31,7 @@ document.addEventListener('click', function(e) {
 
 // Sync status polling for navbar badge
 function updateSyncBadge() {
-    fetch('/admin/sync-status')
+    fetch('/admin/sync-status-api')
         .then(r => r.json())
         .then(data => {
             const dot = document.getElementById('sync-dot');
@@ -59,9 +59,17 @@ function updateSyncBadge() {
 updateSyncBadge();
 setInterval(updateSyncBadge, 30000);
 
-// Load saved theme on page load
+// Load saved theme on page load (system preference as fallback)
 document.addEventListener('DOMContentLoaded', function() {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeUI(savedTheme);
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeUI(savedTheme);
+    } else {
+        // Follow system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = prefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        updateThemeUI(theme);
+    }
 });
