@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 from models import db, Artist, Release, Track, UpdateLog, Wantlist
@@ -64,6 +65,92 @@ def _sync_tracks_for_releases(releases, client, log_entry=None):
     if log_entry:
         log_entry.status = 'success'
         log_entry.finished_at = datetime.utcnow()
+        db.session.commit()
+
+
+def _verify_sync(log_entry):
+    """Verify sync completeness by checking for missing fields. Returns dict of missing counts."""
+    from models import Release, Track
+    
+    missing = {}
+    
+    # Check country
+    no_country = Release.query.filter(
+        (Release.country.is_(None)) | (Release.country == '')
+    ).count()
+    if no_country > 0:
+        missing['country'] = no_country
+    
+    # Check tracks
+    no_tracks = Release.query.outerjoin(Track).filter(Track.id == None).count()
+    if no_tracks > 0:
+        missing['tracks'] = no_tracks
+    
+    # Check cover images
+    no_cover = Release.query.filter(
+        (Release.cover_image_url.is_(None)) | (Release.cover_image_url == '')
+    ).count()
+    if no_cover > 0:
+        missing['cover_image'] = no_cover
+    
+    if missing:
+        log_entry.verification_status = 'failed'
+        log_entry.missing_fields = json.dumps(missing)
+        db.session.commit()
+        logger.warning(f"Sync verification failed: {missing}")
+    else:
+        log_entry.verification_status = 'passed'
+        db.session.commit()
+        logger.info("Sync verification passed")
+    
+    return missing
+
+
+def _fix_missing_fields(missing, token, username, log_entry=None):
+    """Fix missing fields by fetching from Discogs API."""
+    from models import Release, Track
+    
+    client = DiscogsClient(token, username)
+    
+    if 'country' in missing:
+        logger.info(f"Fixing missing country for {missing['country']} releases")
+        releases = Release.query.filter(
+            (Release.country.is_(None)) | (Release.country == '')
+        ).all()
+        for release in releases:
+            try:
+                data = client.get_release(release.discogs_id)
+                if data:
+                    release.country = data.get('country')
+                    if not release.cover_image_url:
+                        _update_images(release, data)
+                    db.session.commit()
+            except Exception as e:
+                logger.error(f"Failed to fix country for {release.discogs_id}: {e}")
+                db.session.rollback()
+    
+    if 'cover_image' in missing:
+        logger.info(f"Fixing missing cover for {missing['cover_image']} releases")
+        releases = Release.query.filter(
+            (Release.cover_image_url.is_(None)) | (Release.cover_image_url == '')
+        ).all()
+        for release in releases:
+            try:
+                data = client.get_release(release.discogs_id)
+                if data:
+                    _update_images(release, data)
+                    db.session.commit()
+            except Exception as e:
+                logger.error(f"Failed to fix cover for {release.discogs_id}: {e}")
+                db.session.rollback()
+    
+    if 'tracks' in missing:
+        logger.info(f"Fixing missing tracks for {missing['tracks']} releases")
+        releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
+        _sync_tracks_for_releases(releases, client)
+    
+    if log_entry:
+        log_entry.verification_status = 'retrying'
         db.session.commit()
 
 
@@ -141,6 +228,16 @@ class SyncService:
             log.artists_added = artists_added
             log.finished_at = datetime.utcnow()
             db.session.commit()
+            
+            # Post-sync verification
+            log.status = 'verifying'
+            db.session.commit()
+            missing = _verify_sync(log)
+            if missing:
+                logger.warning(f"Sync verification found missing fields, fixing...")
+                _fix_missing_fields(missing, self.client.token, self.username, log)
+                # Re-verify after fix
+                _verify_sync(log)
             
             logger.info(f"Sync complete: {total_added} added, {total_updated} updated")
             return {
@@ -272,6 +369,15 @@ class SyncService:
             log.releases_updated = total_updated
             log.finished_at = datetime.utcnow()
             db.session.commit()
+            
+            # Post-sync verification for wantlist
+            log.status = 'verifying'
+            db.session.commit()
+            missing = _verify_sync(log)
+            if missing:
+                logger.warning(f"Wantlist sync verification found missing fields, fixing...")
+                _fix_missing_fields(missing, self.client.token, self.username, log)
+                _verify_sync(log)
             
             logger.info(f"Wantlist sync complete: {total_added} added, {total_updated} updated")
             return {'status': 'success', 'added': total_added, 'updated': total_updated}

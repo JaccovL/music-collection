@@ -9,7 +9,9 @@
         <h2>Collection Sync</h2>
         <div id="sync-log-status">
             {% if sync_log %}
-                {% if sync_log.status == 'running' %}
+                {% if sync_log.status == 'verifying' %}
+                    <p><span class="sync-dot running"></span> Verifying data integrity...</p>
+                {% elif sync_log.status == 'running' %}
                     <p><span class="sync-dot running"></span> Syncing...</p>
                 {% elif sync_log.status == 'success' %}
                     <p><span class="sync-dot success"></span> Synced — Added: {{ sync_log.releases_added }}, Updated: {{ sync_log.releases_updated }}</p>
@@ -22,6 +24,19 @@
                 <p><span class="sync-dot idle"></span> Never run</p>
             {% endif %}
         </div>
+        {% if verification_status == 'failed' and missing_fields %}
+        <div class="flash flash-warning" style="margin-top: 0.75rem;">
+            ⚠️ Missing data detected: <span id="missing-fields-display">{{ missing_fields }}</span> — auto-fix in progress...
+        </div>
+        {% elif verification_status == 'retrying' %}
+        <div class="flash flash-warning" style="margin-top: 0.75rem;">
+            🔄 Fixing missing data...
+        </div>
+        {% elif verification_status == 'passed' %}
+        <div class="flash flash-success" style="margin-top: 0.75rem;">
+            ✓ All data verified complete
+        </div>
+        {% endif %}
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
             <button id="sync-all-btn" class="btn btn-primary" onclick="triggerSyncAll()">🔄 Sync All (Collection + Tracks)</button>
@@ -106,6 +121,9 @@ function triggerSyncAll() {
             btn.disabled = false;
             btn.textContent = '🔄 Sync All (Collection + Tracks)';
         });
+    
+    // Trigger verification after 10 seconds
+    setTimeout(() => fetch('{{ url_for("verify_sync") }}', { method: 'POST' }), 10000);
 }
 
 function confirmReset() {
@@ -159,6 +177,9 @@ function triggerSync() {
             btn.disabled = false;
             btn.textContent = 'Sync Collection Now';
         });
+    
+    // Trigger verification after 5 seconds
+    setTimeout(() => fetch('{{ url_for("verify_sync") }}', { method: 'POST' }), 5000);
 }
 
 function triggerTrackSync() {
@@ -183,6 +204,9 @@ function triggerTrackSync() {
             btn.disabled = false;
             btn.textContent = 'Sync Tracks Now';
         });
+    
+    // Trigger verification after 10 seconds
+    setTimeout(() => fetch('{{ url_for("verify_sync") }}', { method: 'POST' }), 10000);
 }
 
 function triggerWantlistSync() {
@@ -207,6 +231,9 @@ function triggerWantlistSync() {
             btn.disabled = false;
             btn.textContent = 'Sync Wantlist Now';
         });
+    
+    // Trigger verification after 5 seconds
+    setTimeout(() => fetch('{{ url_for("verify_sync") }}', { method: 'POST' }), 5000);
 }
 
 // Poll sync status every 10 seconds
@@ -219,6 +246,8 @@ function pollSyncStatus() {
             
             if (data.status === 'never_run') {
                 container.innerHTML = '<p><span class="sync-dot idle"></span> Never run</p>';
+            } else if (data.status === 'verifying') {
+                container.innerHTML = '<p><span class="sync-dot running"></span> Verifying data integrity...</p>';
             } else if (data.status === 'running') {
                 container.innerHTML = '<p><span class="sync-dot running"></span> Syncing...</p>';
             } else if (data.status === 'success') {
@@ -227,6 +256,30 @@ function pollSyncStatus() {
             } else if (data.status === 'error') {
                 const last = data.finished_at ? new Date(data.finished_at).toLocaleString() : '';
                 container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+            }
+            
+            // Show verification alerts
+            const existingAlert = document.querySelector('.verification-alert');
+            if (existingAlert) existingAlert.remove();
+            
+            if (data.verification_status === 'failed' && data.missing_fields) {
+                const alert = document.createElement('div');
+                alert.className = 'flash flash-warning verification-alert';
+                alert.style.marginTop = '0.75rem';
+                alert.innerHTML = `⚠️ Missing data detected: ${data.missing_fields} — auto-fix in progress...`;
+                container.parentElement.appendChild(alert);
+            } else if (data.verification_status === 'retrying') {
+                const alert = document.createElement('div');
+                alert.className = 'flash flash-warning verification-alert';
+                alert.style.marginTop = '0.75rem';
+                alert.innerHTML = '🔄 Fixing missing data...';
+                container.parentElement.appendChild(alert);
+            } else if (data.verification_status === 'passed') {
+                const alert = document.createElement('div');
+                alert.className = 'flash flash-success verification-alert';
+                alert.style.marginTop = '0.75rem';
+                alert.innerHTML = '✓ All data verified complete';
+                container.parentElement.appendChild(alert);
             }
         });
     

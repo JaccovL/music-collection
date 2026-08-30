@@ -86,13 +86,15 @@ class UpdateLog(db.Model):
     sync_type = db.Column(db.String(20), default='collection')  # collection, track
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     finished_at = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default='running')  # running, success, error
+    status = db.Column(db.String(20), default='running')  # running, success, error, verifying
     releases_added = db.Column(db.Integer, default=0)
     releases_updated = db.Column(db.Integer, default=0)
     artists_added = db.Column(db.Integer, default=0)
     tracks_added = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text)
     triggered_by = db.Column(db.String(20))  # cron, manual
+    verification_status = db.Column(db.String(20))  # pending, passed, failed, retrying
+    missing_fields = db.Column(db.Text)  # JSON: {"country": 4835, "tracks": 123}
 
 class AppSettings(db.Model):
     __tablename__ = 'app_settings'

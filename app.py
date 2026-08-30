@@ -11,7 +11,7 @@ import io
 
 from config import Config
 from models import db, User, Artist, Release, Track, UpdateLog, AppSettings, Wantlist
-from sync_service import SyncService, _sync_tracks_for_releases
+from sync_service import SyncService, _sync_tracks_for_releases, _verify_sync, _fix_missing_fields
 from discogs_client import DiscogsClient
 from health import run_health_checks, _health_cache
 
@@ -597,13 +597,26 @@ def admin_sync_status():
     if track_sync_log and track_sync_log.finished_at:
         track_sync_finished = track_sync_log.finished_at.strftime('%Y-%m-%d %H:%M')
     
+    # Flash alert if verification failed
+    if sync_log and sync_log.verification_status == 'failed' and sync_log.missing_fields:
+        import json
+        try:
+            missing = json.loads(sync_log.missing_fields)
+            flash(f'Missing data detected: {", ".join(f"{k}: {v}" for k, v in missing.items())} — auto-fix in progress...', 'warning')
+        except:
+            flash('Missing data detected — auto-fix in progress...', 'warning')
+    elif sync_log and sync_log.verification_status == 'passed':
+        flash('All data verified complete', 'success')
+    
     return render_template('admin_sync_status.html',
         sync_log=sync_log, total_releases=total_releases,
         total_artists=total_artists, releases_with_tracks=releases_with_tracks,
         releases_without_tracks=total_releases - releases_with_tracks,
         track_sync_status=track_sync_log.status if track_sync_log else 'never_run',
         track_sync_finished=track_sync_finished,
-        track_sync_error=track_sync_log.error_message if track_sync_log else None
+        track_sync_error=track_sync_log.error_message if track_sync_log else None,
+        verification_status=sync_log.verification_status if sync_log else None,
+        missing_fields=sync_log.missing_fields if sync_log else None
     )
 
 @app.route('/admin/db-stats')
@@ -688,6 +701,51 @@ def statistics_api(chart_type):
 @admin_required
 def admin_health():
     return render_template('admin_health.html', status=get_health_status())
+
+@app.route('/admin/verify-sync', methods=['POST'])
+@login_required
+@admin_required
+def verify_sync():
+    """Verify the latest sync and fix missing fields."""
+    latest_log = UpdateLog.query.filter_by(sync_type='collection').order_by(UpdateLog.id.desc()).first()
+    if not latest_log:
+        return jsonify({'error': 'No sync log found'}), 404
+    
+    if latest_log.status == 'running':
+        return jsonify({'status': 'running', 'message': 'Sync still running'}), 202
+    
+    # Run verification
+    missing = _verify_sync(latest_log)
+    if missing:
+        # Get credentials
+        token = get_setting('discogs_token', '') or app.config.get('DISCOGS_TOKEN', '')
+        username = get_setting('discogs_username', '') or app.config.get('DISCOGS_USERNAME', '')
+        if not token or not username:
+            return jsonify({'error': 'Discogs credentials not configured'}), 400
+        
+        # Fix missing fields
+        _fix_missing_fields(missing, token, username, latest_log)
+        # Re-verify
+        missing = _verify_sync(latest_log)
+        
+        if missing:
+            return jsonify({
+                'status': 'failed',
+                'message': f'Still missing: {missing}',
+                'verification_status': latest_log.verification_status
+            })
+        return jsonify({
+            'status': 'fixed',
+            'message': 'Missing fields fixed',
+            'verification_status': latest_log.verification_status
+        })
+    
+    return jsonify({
+        'status': 'passed',
+        'message': 'All data verified',
+        'verification_status': latest_log.verification_status
+    })
+
 
 @app.route('/admin/sync', methods=['POST'])
 @login_required
@@ -926,7 +984,9 @@ def sync_status():
         'started_at': log.started_at.isoformat() if log.started_at else None,
         'finished_at': log.finished_at.isoformat() if log.finished_at else None,
         'releases_added': log.releases_added, 'releases_updated': log.releases_updated,
-        'error_message': log.error_message, 'triggered_by': log.triggered_by
+        'error_message': log.error_message, 'triggered_by': log.triggered_by,
+        'verification_status': log.verification_status,
+        'missing_fields': log.missing_fields
     })
 
 # ==================== SCHEDULER ====================
