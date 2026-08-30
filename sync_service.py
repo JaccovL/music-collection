@@ -1,6 +1,13 @@
 import json
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+AMSTERDAM_TZ = ZoneInfo('Europe/Amsterdam')
+
+def _now():
+    """Get current time in UTC for storage."""
+    return datetime.utcnow()
 from models import db, Artist, Release, Track, UpdateLog, Wantlist
 from discogs_client import DiscogsClient
 
@@ -64,7 +71,7 @@ def _sync_tracks_for_releases(releases, client, log_entry=None):
     logger.info("Track sync complete")
     if log_entry:
         log_entry.status = 'success'
-        log_entry.finished_at = datetime.utcnow()
+        log_entry.finished_at = _now()
         db.session.commit()
 
 
@@ -226,7 +233,7 @@ class SyncService:
             log.releases_added = total_added
             log.releases_updated = total_updated
             log.artists_added = artists_added
-            log.finished_at = datetime.utcnow()
+            log.finished_at = _now()
             db.session.commit()
             
             # Post-sync verification
@@ -238,6 +245,10 @@ class SyncService:
                 _fix_missing_fields(missing, self.client.token, self.username, log)
                 # Re-verify after fix
                 _verify_sync(log)
+            
+            # Mark as success after verification passes
+            log.status = 'success'
+            db.session.commit()
             
             logger.info(f"Sync complete: {total_added} added, {total_updated} updated")
             return {
@@ -251,7 +262,7 @@ class SyncService:
             logger.error(f"Sync failed: {e}")
             log.status = 'error'
             log.error_message = str(e)
-            log.finished_at = datetime.utcnow()
+            log.finished_at = _now()
             db.session.commit()
             raise
     
@@ -367,7 +378,7 @@ class SyncService:
             log.status = 'success'
             log.releases_added = total_added
             log.releases_updated = total_updated
-            log.finished_at = datetime.utcnow()
+            log.finished_at = _now()
             db.session.commit()
             
             # Post-sync verification for wantlist
@@ -379,6 +390,10 @@ class SyncService:
                 _fix_missing_fields(missing, self.client.token, self.username, log)
                 _verify_sync(log)
             
+            # Mark as success after verification passes
+            log.status = 'success'
+            db.session.commit()
+            
             logger.info(f"Wantlist sync complete: {total_added} added, {total_updated} updated")
             return {'status': 'success', 'added': total_added, 'updated': total_updated}
             
@@ -386,7 +401,7 @@ class SyncService:
             logger.error(f"Wantlist sync failed: {e}")
             log.status = 'error'
             log.error_message = str(e)
-            log.finished_at = datetime.utcnow()
+            log.finished_at = _now()
             db.session.commit()
             raise
     

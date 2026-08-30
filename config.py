@@ -5,7 +5,7 @@ load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'mysql+pymysql://music:music@10.10.0.10:3306/music_collection')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'mysql+pymysql://music:DiscoGS2026@10.10.0.10:3306/music_collection')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Discogs

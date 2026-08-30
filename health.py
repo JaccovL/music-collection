@@ -6,6 +6,9 @@ import time
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import Optional, Tuple
+from zoneinfo import ZoneInfo
+
+AMSTERDAM_TZ = ZoneInfo('Europe/Amsterdam')
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,7 @@ def check_mariadb_query(db_uri: str = None, timeout: int = 5) -> Tuple[bool, Opt
         from sqlalchemy.exc import OperationalError, DatabaseError
         
         if db_uri is None:
-            db_uri = os.environ.get('DATABASE_URL', 'mysql+pymysql://music:***@10.10.0.10:3306/music_collection')
+            db_uri = os.environ.get('DATABASE_URL', 'mysql+pymysql://music:DiscoGS2026@10.10.0.10:3306/music_collection')
         
         engine = create_engine(db_uri, connect_args={'connect_timeout': timeout})
         with engine.connect() as conn:

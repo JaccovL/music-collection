@@ -26,6 +26,13 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.0.3 (2026-08-30)
+- **Cancel Sync Button** — Stop collection, track, or wantlist syncs mid-flight with smart visibility (only shows when sync is active)
+- **Timezone Fix (CEST/CET)** — All timestamps now stored in UTC and converted to Amsterdam time for display
+- **Reset Collection Fix** — Uses TRUNCATE TABLE to avoid "Record has changed" errors from concurrent access
+- **Verification Status Bugfix** — Sync status now correctly updates to "success" after verification (no more stuck "verifying" state)
+- **API Consistency** — All ISO timestamps include `Z` suffix for correct JavaScript parsing
+
 ### v2.0.2 (2026-08-30)
 - **Post-Sync Verification** — Automatic check for missing country, tracks, cover images after sync
 - **Auto-fix missing data** — Fetches missing fields from Discogs API automatically

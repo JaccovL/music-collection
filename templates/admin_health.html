@@ -54,7 +54,7 @@
             </div>
         </div>
         
-        <p class="last-check">Last checked: {{ status.last_check.strftime('%Y-%m-%d %H:%M:%S') if status.last_check else 'Never' }}</p>
+        <p class="last-check">Last checked: {{ utc_to_amsterdam(status.last_check).strftime('%Y-%m-%d %H:%M:%S') if status.last_check else 'Never' }}</p>
     </section>
     
     <section class="settings-section">

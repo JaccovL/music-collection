@@ -78,7 +78,7 @@
                 {% if item.date_added %}
                 <div class="meta-row">
                     <span class="meta-label">Date Added</span>
-                    <span class="meta-value">{{ item.date_added.strftime('%Y-%m-%d') }}</span>
+                    <span class="meta-value">{{ utc_to_amsterdam(item.date_added).strftime('%Y-%m-%d') }}</span>
                 </div>
                 {% endif %}
                 {% if item.notes %}

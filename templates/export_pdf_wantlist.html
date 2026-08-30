@@ -84,7 +84,7 @@
 <body>
     <div class="header">
         <h1>Music Wantlist</h1>
-        <p>Exported on {{ now.strftime('%B %d, %Y at %H:%M') }}</p>
+        <p>Exported on {{ utc_to_amsterdam(now).strftime('%B %d, %Y at %H:%M') }}</p>
     </div>
     
     <div class="summary">

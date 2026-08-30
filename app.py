@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -8,6 +9,21 @@ import threading
 import json
 import csv
 import io
+
+# Timezone for display (CEST/CET)
+AMSTERDAM_TZ = ZoneInfo('Europe/Amsterdam')
+
+def now_amsterdam():
+    """Get current time in UTC for storage."""
+    return datetime.utcnow()
+
+def utc_to_amsterdam(dt):
+    """Convert UTC datetime to Amsterdam timezone."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+    return dt.astimezone(AMSTERDAM_TZ)
 
 from config import Config
 from models import db, User, Artist, Release, Track, UpdateLog, AppSettings, Wantlist
@@ -54,6 +70,7 @@ def get_setting(key, default=None):
     return s.value if s and s.value else default
 
 app.jinja_env.globals['get_setting'] = get_setting
+app.jinja_env.globals['utc_to_amsterdam'] = utc_to_amsterdam
 
 def set_setting(key, value):
     s = AppSettings.query.filter_by(key=key).first()
@@ -70,7 +87,7 @@ def get_distinct(column, limit=50):
 
 def get_filter_options():
     """Get filter options with caching."""
-    now = datetime.utcnow().timestamp()
+    now = now_amsterdam().timestamp()
     if now - _filter_cache['ts'] < FILTER_CACHE_TTL:
         return _filter_cache['data']
     
@@ -159,12 +176,12 @@ def export_to_csv(headers, rows, filename):
 def export_to_pdf(template, context, filename):
     """Generate PDF response from template."""
     from weasyprint import HTML
-    html = render_template(template, **context, now=datetime.utcnow())
+    html = render_template(template, **context, now=now_amsterdam())
     pdf = HTML(string=html).write_pdf()
     return Response(pdf, mimetype='application/pdf',
                     headers={'Content-Disposition': f'attachment; filename={filename}'})
 
-def _run_in_background(fn):
+def _run_in_background(fn, sync_type=None):
     """Run a function in a background thread with app context."""
     def wrapper(app_instance):
         with app_instance.app_context():
@@ -172,10 +189,70 @@ def _run_in_background(fn):
                 fn(app_instance)
             except Exception as e:
                 logging.error(f"Background task {fn.__name__} failed: {e}")
+            finally:
+                if sync_type:
+                    _active_syncs.pop(sync_type, None)
     
-    threading.Thread(target=wrapper, args=(app,)).start()
+    thread = threading.Thread(target=wrapper, args=(app,))
+    if sync_type:
+        _active_syncs[sync_type] = thread
+    thread.start()
 
-# ==================== AUTH ====================
+
+# Sync lock to prevent concurrent syncs
+_sync_lock = threading.Lock()
+
+# Cancel events for running syncs
+_cancel_events = {
+    'collection': threading.Event(),
+    'track': threading.Event(),
+    'wantlist': threading.Event(),
+}
+
+# Track running sync threads
+_active_syncs = {}
+
+
+@app.route('/admin/cancel-sync', methods=['POST'])
+@login_required
+@admin_required
+def cancel_sync():
+    """Cancel a running sync."""
+    data = request.get_json() or {}
+    sync_type = data.get('sync_type', 'collection')
+    
+    if sync_type not in _cancel_events:
+        return jsonify({'error': 'Invalid sync type'}), 400
+    
+    if sync_type not in _active_syncs:
+        return jsonify({'error': f'No active {sync_type} sync to cancel'}), 404
+    
+    # Signal cancellation
+    _cancel_events[sync_type].set()
+    
+    # Update log
+    log = UpdateLog.query.filter_by(sync_type=sync_type, status='running').order_by(UpdateLog.id.desc()).first()
+    if log:
+        log.status = 'error'
+        log.error_message = 'Cancelled by user'
+        log.finished_at = now_amsterdam()
+        db.session.commit()
+    
+    return jsonify({'status': 'cancelled', 'message': f'{sync_type} sync cancelled'})
+
+
+def _is_cancelled(sync_type):
+    """Check if a sync has been cancelled."""
+    return _cancel_events.get(sync_type, threading.Event()).is_set()
+
+
+def _reset_cancel(sync_type):
+    """Reset the cancel event for a sync type."""
+    if sync_type in _cancel_events:
+        _cancel_events[sync_type].clear()
+
+
+# ==================== ADMIN / SETTINGS ====================
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -288,7 +365,7 @@ def _try_ldap_login(username, password):
         return None
 
 def _complete_login(user):
-    user.last_login = datetime.utcnow()
+    user.last_login = now_amsterdam()
     db.session.commit()
     login_user(user)
     return redirect(url_for('index'))
@@ -474,9 +551,6 @@ def api_health():
 
 # ==================== ADMIN / SETTINGS ====================
 
-# Sync lock to prevent concurrent syncs
-_sync_lock = threading.Lock()
-
 @app.route('/admin/reset-collection', methods=['POST'])
 @login_required
 @admin_required
@@ -488,16 +562,25 @@ def reset_collection():
         return jsonify({'error': 'A sync is already running. Wait for it to finish.'}), 409
     
     try:
-        # Delete all data
-        Track.query.delete()
-        Release.query.delete()
-        Artist.query.delete()
-        Wantlist.query.delete()
-        UpdateLog.query.delete()
+        from sqlalchemy import text
+        
+        # Use TRUNCATE TABLE to avoid "Record has changed" errors from concurrent access
+        # Disable foreign key checks temporarily since TRUNCATE doesn't cascade
+        db.session.execute(text('SET FOREIGN_KEY_CHECKS=0'))
+        db.session.execute(text('TRUNCATE TABLE tracks'))
+        db.session.execute(text('TRUNCATE TABLE releases'))
+        db.session.execute(text('TRUNCATE TABLE artists'))
+        db.session.execute(text('TRUNCATE TABLE wantlist'))
+        db.session.execute(text('TRUNCATE TABLE update_log'))
+        db.session.execute(text('SET FOREIGN_KEY_CHECKS=1'))
         db.session.commit()
         
         # Invalidate health cache
         _health_cache.invalidate()
+        
+        # Reset cancel events for clean state
+        for event in _cancel_events.values():
+            event.clear()
         
         return jsonify({'status': 'success', 'message': 'Collection cleared. You can now sync fresh from Discogs.'})
     except Exception as e:
@@ -523,12 +606,19 @@ def sync_all():
         _sync_lock.release()
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
+    # Reset cancel event for this sync type
+    _reset_cancel('collection')
+    _reset_cancel('track')
+    
     def do_sync_all(app_instance):
         try:
             service = SyncService(token, username)
             service.sync_collection(triggered_by='manual', fetch_country=True)
+            if _is_cancelled('collection'):
+                logger.info("Sync all cancelled after collection sync")
+                return
             releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
-            if releases:
+            if releases and not _is_cancelled('track'):
                 client = DiscogsClient(token, username)
                 _sync_tracks_for_releases(releases, client)
         except Exception as e:
@@ -536,7 +626,7 @@ def sync_all():
         finally:
             _sync_lock.release()
     
-    _run_in_background(do_sync_all)
+    _run_in_background(do_sync_all, sync_type='collection')
     return jsonify({'status': 'started', 'message': 'Collection sync started, track sync will follow automatically.'})
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
@@ -763,6 +853,9 @@ def trigger_sync():
         _sync_lock.release()
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
+    # Reset cancel event
+    _reset_cancel('collection')
+    
     def do_sync(app_instance):
         try:
             service = SyncService(token, username)
@@ -770,7 +863,7 @@ def trigger_sync():
         finally:
             _sync_lock.release()
     
-    _run_in_background(do_sync)
+    _run_in_background(do_sync, sync_type='collection')
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-tracks', methods=['POST'])
@@ -785,6 +878,9 @@ def trigger_track_sync():
     log = UpdateLog(sync_type='track', status='running', triggered_by='manual')
     db.session.add(log)
     db.session.commit()
+    
+    # Reset cancel event
+    _reset_cancel('track')
     
     def do_track_sync(app_instance):
         try:
@@ -803,12 +899,12 @@ def trigger_track_sync():
             if log_entry:
                 log_entry.status = 'error'
                 log_entry.error_message = str(e)
-                log_entry.finished_at = datetime.utcnow()
+                log_entry.finished_at = now_amsterdam()
                 db.session.commit()
         finally:
             _sync_lock.release()
     
-    _run_in_background(do_track_sync)
+    _run_in_background(do_track_sync, sync_type='track')
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-wantlist', methods=['POST'])
@@ -827,6 +923,9 @@ def trigger_wantlist_sync():
         _sync_lock.release()
         return jsonify({'error': 'Discogs credentials not configured'}), 400
     
+    # Reset cancel event
+    _reset_cancel('wantlist')
+    
     def do_wantlist_sync(app_instance):
         try:
             service = SyncService(token, username)
@@ -834,7 +933,7 @@ def trigger_wantlist_sync():
         finally:
             _sync_lock.release()
     
-    _run_in_background(do_wantlist_sync)
+    _run_in_background(do_wantlist_sync, sync_type='wantlist')
     return jsonify({'status': 'started'})
 
 @app.route('/admin/sync-wantlist-status')
@@ -850,7 +949,7 @@ def wantlist_sync_status():
     return jsonify({
         'status': log.status, 'total_wants': total_wants,
         'added': log.releases_added, 'updated': log.releases_updated,
-        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'finished_at': (log.finished_at.isoformat() + 'Z') if log.finished_at else None,
         'error_message': log.error_message
     })
 
@@ -956,7 +1055,7 @@ def track_sync_status():
         'status': log.status, 'total_releases': total_releases,
         'releases_with_tracks': releases_with_tracks,
         'releases_without_tracks': total_releases - releases_with_tracks,
-        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'finished_at': (log.finished_at.isoformat() + 'Z') if log.finished_at else None,
         'error_message': log.error_message
     })
 
@@ -979,14 +1078,26 @@ def sync_status():
     if not log:
         return jsonify({'status': 'never_run'})
     
+    # Check if there's an active sync running
+    active_syncs = {}
+    for sync_type, thread in _active_syncs.items():
+        if thread.is_alive():
+            active_syncs[sync_type] = True
+    
+    # Convert UTC times to ISO format with timezone indicator
+    # This ensures JavaScript parses them correctly and converts to local time
+    started_at = (log.started_at.isoformat() + 'Z') if log.started_at else None
+    finished_at = (log.finished_at.isoformat() + 'Z') if log.finished_at else None
+    
     return jsonify({
         'status': log.status, 'sync_type': log.sync_type,
-        'started_at': log.started_at.isoformat() if log.started_at else None,
-        'finished_at': log.finished_at.isoformat() if log.finished_at else None,
+        'started_at': started_at,
+        'finished_at': finished_at,
         'releases_added': log.releases_added, 'releases_updated': log.releases_updated,
         'error_message': log.error_message, 'triggered_by': log.triggered_by,
         'verification_status': log.verification_status,
-        'missing_fields': log.missing_fields
+        'missing_fields': log.missing_fields,
+        'active_syncs': active_syncs
     })
 
 # ==================== SCHEDULER ====================
@@ -998,10 +1109,17 @@ def _scheduled_sync():
         username = get_setting('discogs_username', '')
         if token and username:
             try:
+                # Reset cancel events
+                _reset_cancel('collection')
+                _reset_cancel('track')
+                
                 service = SyncService(token, username)
                 service.sync_collection(triggered_by='cron', fetch_country=True)
+                if _is_cancelled('collection'):
+                    logger.info("Cron sync cancelled after collection sync")
+                    return
                 releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
-                if releases:
+                if releases and not _is_cancelled('track'):
                     client = DiscogsClient(token, username)
                     _sync_tracks_for_releases(releases, client)
             except Exception as e:

@@ -1,24 +1,41 @@
-# Release v2.0.2
+# Release v2.0.3
 
 ## What's New
 
-### Post-Sync Verification
-- **Automatic verification** — After every sync completes, checks for missing country, tracks, and cover images
-- **Auto-fix missing data** — If missing fields detected, automatically fetches from Discogs API
-- **Flash notifications** — Warning when missing data detected, success when all verified
-- **Manual trigger** — `POST /admin/verify-sync` endpoint for on-demand verification
-- **Sync status alerts** — Real-time alerts on Sync Status page during verification/fixes
+### Cancel Sync Button
+- **Cancel running syncs** — Stop collection, track, or wantlist syncs mid-flight
+- **Smart visibility** — Cancel buttons appear only when a sync is active
+- **Thread-safe** — Uses `threading.Event` for clean cancellation
+- **Status tracking** — Cancelled syncs logged with "Cancelled by user" message
 
-### Database Changes
-- Added `verification_status` column to `update_log` (pending, passed, failed, retrying)
-- Added `missing_fields` column to `update_log` (JSON: `{"country": 4835, "tracks": 123}`)
+### Timezone Fix (CEST/CET)
+- **UTC storage** — All timestamps now stored in UTC for consistency
+- **Amsterdam display** — Converted to CEST/CET for all UI rendering
+- **API consistency** — All ISO timestamps include `Z` suffix for correct JS parsing
+- **Data migration** — Existing timestamps converted from Amsterdam time to UTC
+
+### Reset Collection Fix
+- **TRUNCATE TABLE** — Replaces ORM DELETE to avoid "Record has changed" errors
+- **Foreign key handling** — Temporarily disables FK checks during truncation
+- **Clean state** — Resets cancel events and health cache after reset
+
+### Verification Status Bugfix
+- **Stuck "verifying"** — Sync status now correctly updates to "success" after verification
+- **Wantlist sync** — No longer appears to run indefinitely after completion
 
 ### Files Modified
-- `app.py` — Added `/admin/verify-sync` endpoint, flash alerts, verification triggers on all sync buttons
-- `sync_service.py` — Added `_verify_sync()` and `_fix_missing_fields()` helpers, post-sync verification hooks
-- `models.py` — Added `verification_status` and `missing_fields` columns to `UpdateLog`
-- `templates/admin_sync_status.html` — Verification alerts, JS polling for verification status
+- `app.py` — Cancel sync infrastructure (`/admin/cancel-sync`), `utc_to_amsterdam()` helper, `now_amsterdam()` returns UTC, cancel checks in sync routes, API returns `Z`-suffixed timestamps
+- `sync_service.py` — `_now()` returns UTC, verification sets `status='success'` after passing
+- `models.py` — `_now()` returns UTC, `utc_to_amsterdam()` helper, all `DateTime` defaults use `_now`
+- `health.py` — Uses UTC for `last_check`
+- `static/css/style.css` — `.btn-danger` style for cancel buttons
+- `templates/admin_sync_status.html` — Cancel buttons, `cancelSync()` JS, auto-show/hide logic, `utc_to_amsterdam()` for display
+- `templates/admin_health.html` — `utc_to_amsterdam()` for last check time
+- `templates/export_pdf.html` — `utc_to_amsterdam()` for export timestamp
+- `templates/export_pdf_wantlist.html` — `utc_to_amsterdam()` for export timestamp
+- `templates/release.html` — `utc_to_amsterdam()` for date added
+- `templates/wantlist_detail.html` — `utc_to_amsterdam()` for date added
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.1...v2.0.2
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.2...v2.0.3

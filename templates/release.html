@@ -79,7 +79,7 @@
                 {% if release.date_added %}
                 <div class="detail-row">
                     <dt>Date Added</dt>
-                    <dd>{{ release.date_added.strftime('%Y-%m-%d') }}</dd>
+                    <dd>{{ utc_to_amsterdam(release.date_added).strftime('%Y-%m-%d') }}</dd>
                 </div>
                 {% endif %}
             </dl>

@@ -15,10 +15,10 @@
                     <p><span class="sync-dot running"></span> Syncing...</p>
                 {% elif sync_log.status == 'success' %}
                     <p><span class="sync-dot success"></span> Synced — Added: {{ sync_log.releases_added }}, Updated: {{ sync_log.releases_updated }}</p>
-                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ sync_log.finished_at.strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ utc_to_amsterdam(sync_log.finished_at).strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
                 {% elif sync_log.status == 'error' %}
                     <p><span class="sync-dot error"></span> Failed — {{ sync_log.error_message or 'Unknown error' }}</p>
-                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ sync_log.finished_at.strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ utc_to_amsterdam(sync_log.finished_at).strftime('%Y-%m-%d %H:%M') if sync_log.finished_at else '' }}</p>
                 {% endif %}
             {% else %}
                 <p><span class="sync-dot idle"></span> Never run</p>
@@ -40,6 +40,7 @@
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button id="sync-btn" class="btn btn-primary" onclick="triggerSync()">Sync Collection Now</button>
             <button id="sync-all-btn" class="btn btn-primary" onclick="triggerSyncAll()">🔄 Sync All (Collection + Tracks)</button>
+            <button id="cancel-sync-btn" class="btn btn-danger" onclick="cancelSync('collection')" style="display:none;">⏹ Cancel</button>
         </div>
     </section>
     
@@ -63,7 +64,10 @@
                 {% if track_sync_finished %}<p style="color: var(--text-muted); font-size: 0.85rem;">Last sync: {{ track_sync_finished }}</p>{% endif %}
             {% endif %}
         </div>
-        <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
+            <button id="cancel-track-btn" class="btn btn-danger" onclick="cancelSync('track')" style="display:none;">⏹ Cancel</button>
+        </div>
     </section>
     
     {% if get_setting('wantlist_enabled', 'false') == 'true' %}
@@ -73,6 +77,7 @@
             <p><span class="sync-dot idle"></span> Waiting...</p>
         </div>
         <button id="wantlist-sync-btn" class="btn btn-primary" onclick="triggerWantlistSync()">Sync Wantlist Now</button>
+        <button id="cancel-wantlist-btn" class="btn btn-danger" onclick="cancelSync('wantlist')" style="display:none;">⏹ Cancel</button>
     </section>
     {% endif %}
 
@@ -97,6 +102,54 @@ function formatTimestamp(iso) {
     const d = new Date(iso);
     return d.toLocaleString();
 }
+
+function cancelSync(syncType) {
+    if (!confirm('Cancel the running sync?')) return;
+    
+    fetch('/admin/cancel-sync', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sync_type: syncType})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            alert('Sync cancelled');
+        }
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function updateCancelButtons() {
+    // Collection sync
+    const syncLog = document.getElementById('sync-log-status');
+    const cancelSyncBtn = document.getElementById('cancel-sync-btn');
+    if (syncLog && cancelSyncBtn) {
+        const isRunning = syncLog.querySelector('.sync-dot.running') !== null;
+        cancelSyncBtn.style.display = isRunning ? 'inline-block' : 'none';
+    }
+    
+    // Track sync
+    const trackSync = document.getElementById('track-sync-status');
+    const cancelTrackBtn = document.getElementById('cancel-track-btn');
+    if (trackSync && cancelTrackBtn) {
+        const isRunning = trackSync.querySelector('.sync-dot.running') !== null;
+        cancelTrackBtn.style.display = isRunning ? 'inline-block' : 'none';
+    }
+    
+    // Wantlist sync
+    const wantlistSync = document.getElementById('wantlist-sync-status');
+    const cancelWantlistBtn = document.getElementById('cancel-wantlist-btn');
+    if (wantlistSync && cancelWantlistBtn) {
+        const isRunning = wantlistSync.querySelector('.sync-dot.running') !== null;
+        cancelWantlistBtn.style.display = isRunning ? 'inline-block' : 'none';
+    }
+}
+
+// Run on page load and after each poll
+setTimeout(updateCancelButtons, 500);
 
 function triggerSyncAll() {
     const btn = document.getElementById('sync-all-btn');
@@ -342,6 +395,7 @@ function pollWantlistSyncStatus() {
 
 pollSyncStatus();
 setInterval(pollSyncStatus, 10000);
+setInterval(updateCancelButtons, 1000); // Update cancel button visibility every second
 
 {% if get_setting('wantlist_enabled', 'false') == 'true' %}
 pollWantlistSyncStatus();
