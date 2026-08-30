@@ -979,14 +979,37 @@ def sync_status():
 # ==================== SCHEDULER ====================
 
 def _scheduled_sync():
-    """Background sync job."""
+    """Background sync job - runs collection sync then track sync."""
     with app.app_context():
         token = get_setting('discogs_token', '')
         username = get_setting('discogs_username', '')
         if token and username:
             try:
                 service = SyncService(token, username)
+                # First: collection sync
                 service.sync_collection(triggered_by='cron', fetch_country=True)
+                # Then: track sync for any releases without tracks
+                from discogs_client import DiscogsClient
+                client = DiscogsClient(token, username)
+                releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
+                if releases:
+                    logger.info(f"Cron: fetching tracks for {len(releases)} releases")
+                    for release in releases:
+                        try:
+                            data = client.get_release(release.discogs_id)
+                            if data:
+                                tracklist = data.get('tracklist', [])
+                                if tracklist:
+                                    Track.query.filter_by(release_id=release.id).delete()
+                                    db.session.flush()
+                                    for t in tracklist:
+                                        track = Track(release_id=release.id, position=t.get('position', ''),
+                                                      title=t.get('title', ''), duration=t.get('duration', ''))
+                                        db.session.add(track)
+                                    db.session.commit()
+                        except Exception as e:
+                            logger.error(f"Cron: failed to fetch tracks for {release.discogs_id}: {e}")
+                            db.session.rollback()
             except Exception as e:
                 logger.error(f"Scheduled sync failed: {e}")
 

@@ -32,17 +32,20 @@
         <h2>Track Sync</h2>
         <div id="track-sync-status">
             {% if track_sync_status == 'running' %}
-                <p><span class="sync-dot running"></span> Syncing...</p>
+                <p><span class="sync-dot running"></span> Syncing tracks...</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">This may take a while (~100 releases/min). You can leave this page.</p>
             {% elif track_sync_status == 'success' %}
-                <p><span class="sync-dot success"></span> Synced — Releases with tracks: {{ releases_with_tracks }} / {{ total_releases }}</p>
+                <p><span class="sync-dot success"></span> Synced — Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
+                <div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: {{ (releases_with_tracks / total_releases * 100) if total_releases else 0 }}%"></div></div>
                 <p style="color: var(--text-muted); font-size: 0.85rem;">{{ track_sync_finished }}</p>
             {% elif track_sync_status == 'error' %}
                 <p><span class="sync-dot error"></span> Failed — {{ track_sync_error or 'Unknown error' }}</p>
                 <p style="color: var(--text-muted); font-size: 0.85rem;">{{ track_sync_finished }}</p>
             {% else %}
                 <p><span class="sync-dot idle"></span> Releases with tracks: <strong>{{ releases_with_tracks }}</strong> / {{ total_releases }}</p>
+                <div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: {{ (releases_with_tracks / total_releases * 100) if total_releases else 0 }}%"></div></div>
                 <p style="color: var(--text-muted);">{{ releases_without_tracks }} remaining</p>
-                {% if track_sync_finished %}<p style="color: var(--text-muted); font-size: 0.85rem;">{{ track_sync_finished }}</p>{% endif %}
+                {% if track_sync_finished %}<p style="color: var(--text-muted); font-size: 0.85rem;">Last sync: {{ track_sync_finished }}</p>{% endif %}
             {% endif %}
         </div>
         <button id="track-sync-btn" class="btn btn-primary" onclick="triggerTrackSync()">Sync Tracks Now</button>
@@ -233,18 +236,24 @@ function pollSyncStatus() {
             const container = document.getElementById('track-sync-status');
             if (!container) return;
             
+            const pct = data.total_releases ? Math.round(data.releases_with_tracks / data.total_releases * 100) : 0;
+            
             if (data.status === 'never_run' || !data.status) {
                 let html = `<p><span class="sync-dot idle"></span> Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>`;
+                html += `<div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: ${pct}%"></div></div>`;
                 html += `<p style="color: var(--text-muted);">${data.releases_without_tracks} remaining</p>`;
                 if (data.finished_at) {
-                    html += `<p style="color: var(--text-muted); font-size: 0.85rem;">${formatTimestamp(data.finished_at)}</p>`;
+                    html += `<p style="color: var(--text-muted); font-size: 0.85rem;">Last sync: ${formatTimestamp(data.finished_at)}</p>`;
                 }
                 container.innerHTML = html;
             } else if (data.status === 'running') {
-                container.innerHTML = '<p><span class="sync-dot running"></span> Syncing...</p>';
+                container.innerHTML = '<p><span class="sync-dot running"></span> Syncing tracks...</p><p style="color: var(--text-muted); font-size: 0.85rem;">This may take a while (~100 releases/min). You can leave this page.</p>';
             } else if (data.status === 'success') {
                 const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
-                container.innerHTML = `<p><span class="sync-dot success"></span> Synced — Releases with tracks: ${data.releases_with_tracks} / ${data.total_releases}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+                let html = `<p><span class="sync-dot success"></span> Synced — Releases with tracks: <strong>${data.releases_with_tracks}</strong> / ${data.total_releases}</p>`;
+                html += `<div class="progress-bar" style="margin: 0.5rem 0;"><div class="progress-fill" style="width: ${pct}%"></div></div>`;
+                html += `<p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;
+                container.innerHTML = html;
             } else if (data.status === 'error') {
                 const last = data.finished_at ? formatTimestamp(data.finished_at) : '';
                 container.innerHTML = `<p><span class="sync-dot error"></span> Failed — ${data.error_message || 'Unknown error'}</p><p style="color: var(--text-muted); font-size: 0.85rem;">${last}</p>`;

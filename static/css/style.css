@@ -402,8 +402,19 @@ a:hover {
     background: var(--bg);
     color: var(--text);
     font-size: 0.8rem;
-    min-width: 45px;
+    width: 100%;
+    min-width: 80px;
+    max-width: 120px;
     transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    width: 100px;
 }
 
 .filter-group select:focus,
@@ -512,6 +523,12 @@ a:hover {
     margin-left: auto;
     font-size: 0.85rem;
     color: var(--text-muted);
+}
+
+.export-buttons {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: 0.75rem;
 }
 
 /* Data table */
@@ -625,6 +642,25 @@ a:hover {
 .data-table .track-count {
     font-size: 0.8rem;
     color: var(--text-muted);
+}
+
+.data-table .no-tracks {
+    font-size: 0.9rem;
+    cursor: help;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #6200ee;
+    border-radius: 3px;
+    transition: width 0.3s ease;
 }
 
 .col-thumb {
@@ -821,25 +857,25 @@ a:hover {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
 }
 
 .settings-section h2 {
-    font-size: 1.1rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.15rem;
     border-bottom: 1px solid var(--border);
 }
 
 .form-group {
-    margin-bottom: 1rem;
+    margin-bottom: 0.35rem;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 0.25rem;
-    font-size: 0.85rem;
+    margin-bottom: 0.1rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
 }
 
@@ -848,12 +884,12 @@ a:hover {
 .form-group input[type="number"],
 .form-group select {
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 0.35rem 0.5rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--bg);
     color: var(--text);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .form-group input:focus {
@@ -1186,5 +1222,98 @@ table tr:hover td {
     .form-row { flex-direction: column; }
     .nav-container { flex-direction: column; gap: 0.5rem; }
     .pagination { flex-direction: column; gap: 0.5rem; }
+}
+
+/* Statistics Dashboard */
+.statistics-page {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.stats-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.stat-icon {
+    font-size: 1.5rem;
+}
+
+.stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow: hidden;
+}
+
+.chart-card h3 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.chart-large .chart-container {
+    height: 400px;
+}
+
+.chart-full {
+    grid-column: 1 / -1;
+}
+
+.chart-full .chart-container {
+    height: 400px;
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .chart-full {
+        grid-column: auto;
+    }
+    .stats-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 .nav-icon { width: 24px; height: 24px; vertical-align: middle; margin-right: 6px; }
