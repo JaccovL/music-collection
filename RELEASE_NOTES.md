@@ -1,52 +1,25 @@
-# Release v2.0.0
+# Release v2.0.1
 
 ## What's New
 
-### New Features
-- **🎲 Random Release Picker** — Button in search bar picks a random release from your current filtered results and opens its detail modal
-- **⚠️ Missing Tracks Indicator** — Releases without tracklists show ⚠️ instead of a track count, so you can see at a glance which need syncing
-- **🔄 Sync All (Collection + Tracks)** — One button runs collection sync first, then automatically runs track sync for any releases without tracks
-- **🗑️ Reset Collection** — Danger Zone section with double-confirmation to permanently delete all collection data and start fresh
-- **🔒 Sync Lock** — All sync routes now use a lock to prevent concurrent syncs (only one sync at a time)
-- **📊 Progress Bar** — Sync status page shows visual progress bar for track sync completion
-
-### Theme Improvements
-- **System preference detection** — On first visit, the theme follows your OS dark/light mode preference (`prefers-color-scheme`)
-- After manually toggling, your choice is saved and takes priority over system preference
-
-### Format Column Enhancements
-- **"Qty: N" suppressed** — Removed quantity info from format display (was in `format_details`)
-- Example: `Vinyl, 12", 45 RPM, Maxi-Single, Stereo, Qty: 1` → `Vinyl, 12", 45 RPM, Maxi-Single, Stereo`
-- Existing data cleaned: 4,835 releases and 114 wantlist items updated
-
-### Health Check Improvements
-- **Two-level MariaDB check** — Socket check (port open) + Query check (actual `SELECT 1` execution)
-- Catches real failures: corrupt tables, disk full, wrong credentials, database not responding
-- Health page shows both checks separately
-
 ### Bug Fixes
-- **Fixed duplicate route bug** — Two routes were both named `/admin/sync-status`; renamed one to `/admin/sync-status-api`
-- **Fixed local_fallback setting** — Was `false` in database; corrected to `true` so local admin login works when LDAP is unavailable
-- **Fixed cron track sync** — Scheduled job now runs track sync after collection sync automatically
-- **Fixed stuck sync logs** — Added cleanup for stuck "running" state logs
+- **Fixed flash message bug** — Success messages (like "Settings saved") were hidden due to `{% if category != 'success' %}` filter. Now all message types display correctly.
+- **Fixed statistics dashboard** — Genre chart was broken (backend no longer served genre data). Replaced with Style chart and updated "Top Genre" → "Top Format" in summary cards.
 
 ### Code Optimization
-- **Extracted `_run_in_background()` helper** — Single wrapper for all background threads
-- **Extracted `_update_images()` and `_update_format()` helpers** in sync_service.py
-- **Removed duplicate filter/export logic** between Collection and Wantlist
-- **Consolidated settings POST handling** with a loop
+- **Eliminated track sync duplication** — Extracted `_sync_tracks_for_releases()` helper in `sync_service.py`. Used by `sync_all`, `trigger_track_sync`, and `_scheduled_sync` (~50 lines removed).
+- **Removed commented-out code** — Cleaned Qty suppression comments from `_update_format()`.
+- **Removed genre references** — From statistics API and templates.
 
 ### Files Modified
-- `app.py` — Random release route, sync lock, reset collection, sync all, background helper
-- `sync_service.py` — Image/format helpers, Qty suppression
-- `health.py` — Query-level check added
-- `static/js/app.js` — System theme preference detection
-- `templates/search.html` — Random button, missing tracks indicator
-- `templates/admin_sync_status.html` — Sync All button, Danger Zone with Reset, progress bar
-- `templates/admin_health.html` — Shows both socket and query checks
+- `app.py` — Track sync deduplication, style chart in statistics
+- `sync_service.py` — Extracted `_sync_tracks_for_releases()` helper
+- `templates/base.html` — Fixed flash message display
+- `templates/admin_statistics.html` — Replaced genre chart with style chart
+- `templates/release.html` — Removed genre display
 - `README.md` — Version history
 - `RELEASE_NOTES.md` — This file
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v1.4.0...v2.0.0
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.0...v2.0.1

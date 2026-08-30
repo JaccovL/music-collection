@@ -26,6 +26,11 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.0.1 (2026-08-30)
+- **Bug Fixes** — Fixed flash message display (success messages were hidden), fixed statistics dashboard (replaced broken genre chart with style chart)
+- **Code Optimization** — Extracted `_sync_tracks_for_releases()` helper to eliminate ~50 lines of duplicated track sync code
+- **Removed genre references** — From statistics API and templates
+
 ### v2.0.0 (2026-08-30)
 - **🎲 Random Release Picker** — Button in search bar picks a random release from current filtered results
 - **⚠️ Missing Tracks Indicator** — Releases without tracklists show ⚠️ instead of track count

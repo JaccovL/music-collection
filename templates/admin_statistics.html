@@ -44,10 +44,10 @@
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">🎭</div>
+            <div class="stat-icon">💿</div>
             <div class="stat-info">
-                <span class="stat-value" id="stat-top-genre">...</span>
-                <span class="stat-label">Top Genre</span>
+                <span class="stat-value" id="stat-top-format">...</span>
+                <span class="stat-label">Top Format</span>
             </div>
         </div>
     </div>
@@ -55,9 +55,9 @@
     <!-- Charts Grid -->
     <div class="charts-grid">
         <div class="chart-card chart-large">
-            <h3>Releases by Genre</h3>
+            <h3>Releases by Style</h3>
             <div class="chart-container">
-                <canvas id="chart-genre"></canvas>
+                <canvas id="chart-style"></canvas>
             </div>
         </div>
         
@@ -68,7 +68,7 @@
             </div>
         </div>
         
-        <div class="chart-card chart-full">
+        <div class="chart-card chart-large">
             <h3>Releases by Decade</h3>
             <div class="chart-container">
                 <canvas id="chart-decade"></canvas>
@@ -112,7 +112,7 @@ fetch('{{ url_for("statistics_api", chart_type="summary") }}')
         document.getElementById('stat-tracks').textContent = data.total_tracks.toLocaleString();
         document.getElementById('stat-year-range').textContent = data.year_min && data.year_max ? data.year_min + ' - ' + data.year_max : 'N/A';
         document.getElementById('stat-avg-tracks').textContent = data.avg_tracks_per_release;
-        document.getElementById('stat-top-genre').textContent = data.top_genre;
+        document.getElementById('stat-top-format').textContent = data.top_format;
     });
 
 // Chart configurations
@@ -126,11 +126,11 @@ function shortenLabel(label, maxLen) {
     return label.length > maxLen ? label.substring(0, maxLen - 1) + '…' : label;
 }
 
-// Genre Chart (Doughnut)
-fetch('{{ url_for("statistics_api", chart_type="genre") }}')
+// Style Chart (Doughnut)
+fetch('{{ url_for("statistics_api", chart_type="style") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-genre'), {
+        new Chart(document.getElementById('chart-style'), {
             type: 'doughnut',
             data: {
                 labels: data.map(d => shortenLabel(d.label, 30)),

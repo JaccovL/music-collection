@@ -49,12 +49,10 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
-            {% if category != 'success' %}
             <div class="flash flash-{{ category }}">
                 {{ message }}
                 <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
             </div>
-            {% endif %}
             {% endfor %}
         </div>
         {% endif %}

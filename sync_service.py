@@ -31,11 +31,40 @@ def _update_format(obj, data):
             desc = f.get('descriptions', [])
             if desc:
                 descriptions.extend(desc)
-            # Suppress "Qty: N" — not useful for display
-            # qty = f.get('qty', '')
-            # if qty:
-            #     descriptions.append(f'Qty: {qty}')
         obj.format_details = ', '.join(descriptions) if descriptions else None
+
+
+def _sync_tracks_for_releases(releases, client, log_entry=None):
+    """Fetch and store tracklists for releases without tracks. Shared by sync_all, track sync, and cron."""
+    total = len(releases)
+    if total == 0:
+        return
+    
+    logger.info(f"Syncing tracks for {total} releases")
+    for i, release in enumerate(releases):
+        try:
+            data = client.get_release(release.discogs_id)
+            if data:
+                tracklist = data.get('tracklist', [])
+                if tracklist:
+                    Track.query.filter_by(release_id=release.id).delete()
+                    db.session.flush()
+                    for t in tracklist:
+                        track = Track(release_id=release.id, position=t.get('position', ''),
+                                      title=t.get('title', ''), duration=t.get('duration', ''))
+                        db.session.add(track)
+                    db.session.commit()
+            if (i+1) % 50 == 0:
+                logger.info(f"Track sync: {i+1}/{total}")
+        except Exception as e:
+            logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
+            db.session.rollback()
+    
+    logger.info("Track sync complete")
+    if log_entry:
+        log_entry.status = 'success'
+        log_entry.finished_at = datetime.utcnow()
+        db.session.commit()
 
 
 class SyncService:

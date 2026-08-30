@@ -11,7 +11,7 @@ import io
 
 from config import Config
 from models import db, User, Artist, Release, Track, UpdateLog, AppSettings, Wantlist
-from sync_service import SyncService
+from sync_service import SyncService, _sync_tracks_for_releases
 from discogs_client import DiscogsClient
 from health import run_health_checks, _health_cache
 
@@ -526,33 +526,11 @@ def sync_all():
     def do_sync_all(app_instance):
         try:
             service = SyncService(token, username)
-            # First: collection sync
             service.sync_collection(triggered_by='manual', fetch_country=True)
-            # Then: track sync for any releases without tracks
             releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
             if releases:
                 client = DiscogsClient(token, username)
-                total = len(releases)
-                logger.info(f"Syncing tracks for {total} releases")
-                for i, release in enumerate(releases):
-                    try:
-                        data = client.get_release(release.discogs_id)
-                        if data:
-                            tracklist = data.get('tracklist', [])
-                            if tracklist:
-                                Track.query.filter_by(release_id=release.id).delete()
-                                db.session.flush()
-                                for t in tracklist:
-                                    track = Track(release_id=release.id, position=t.get('position', ''),
-                                                  title=t.get('title', ''), duration=t.get('duration', ''))
-                                    db.session.add(track)
-                                db.session.commit()
-                        if (i+1) % 50 == 0:
-                            logger.info(f"Track sync: {i+1}/{total}")
-                    except Exception as e:
-                        logger.error(f"Failed to fetch tracks for {release.discogs_id}: {e}")
-                        db.session.rollback()
-                logger.info("Track sync complete")
+                _sync_tracks_for_releases(releases, client)
         except Exception as e:
             logger.error(f"Sync all failed: {e}")
         finally:
@@ -660,6 +638,7 @@ def statistics_api(chart_type):
     
     chart_queries = {
         'format': (Release.format, Release.format),
+        'style': (Release.style, Release.style),
         'country': (Release.country, Release.country),
         'label': (Release.label, Release.label),
     }
@@ -758,34 +737,8 @@ def trigger_track_sync():
             
             client = DiscogsClient(token, username)
             releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
-            total = len(releases)
-            logger.info(f"Fetching tracks for {total} releases")
-            
-            for i, release in enumerate(releases):
-                try:
-                    data = client.get_release(release.discogs_id)
-                    if data:
-                        tracklist = data.get('tracklist', [])
-                        if tracklist:
-                            Track.query.filter_by(release_id=release.id).delete()
-                            db.session.flush()
-                            for t in tracklist:
-                                track = Track(release_id=release.id, position=t.get('position', ''), title=t.get('title', ''), duration=t.get('duration', ''))
-                                db.session.add(track)
-                            db.session.commit()
-                    if (i+1) % 50 == 0:
-                        logger.info(f"Track sync: {i+1}/{total}")
-                except Exception as e:
-                    logger.error(f"Failed to fetch tracks for release {release.discogs_id}: {e}")
-                    db.session.rollback()
-            
             log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
-            if log_entry:
-                log_entry.status = 'success'
-                log_entry.finished_at = datetime.utcnow()
-                db.session.commit()
-            
-            logger.info("Track sync complete")
+            _sync_tracks_for_releases(releases, client, log_entry)
         except Exception as e:
             logging.error(f"Track sync failed: {e}")
             log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
@@ -986,30 +939,11 @@ def _scheduled_sync():
         if token and username:
             try:
                 service = SyncService(token, username)
-                # First: collection sync
                 service.sync_collection(triggered_by='cron', fetch_country=True)
-                # Then: track sync for any releases without tracks
-                from discogs_client import DiscogsClient
-                client = DiscogsClient(token, username)
                 releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
                 if releases:
-                    logger.info(f"Cron: fetching tracks for {len(releases)} releases")
-                    for release in releases:
-                        try:
-                            data = client.get_release(release.discogs_id)
-                            if data:
-                                tracklist = data.get('tracklist', [])
-                                if tracklist:
-                                    Track.query.filter_by(release_id=release.id).delete()
-                                    db.session.flush()
-                                    for t in tracklist:
-                                        track = Track(release_id=release.id, position=t.get('position', ''),
-                                                      title=t.get('title', ''), duration=t.get('duration', ''))
-                                        db.session.add(track)
-                                    db.session.commit()
-                        except Exception as e:
-                            logger.error(f"Cron: failed to fetch tracks for {release.discogs_id}: {e}")
-                            db.session.rollback()
+                    client = DiscogsClient(token, username)
+                    _sync_tracks_for_releases(releases, client)
             except Exception as e:
                 logger.error(f"Scheduled sync failed: {e}")
 
