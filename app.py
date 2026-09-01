@@ -1092,15 +1092,20 @@ def sync_status():
         if thread.is_alive():
             active_syncs[sync_type] = True
     
-    # Convert UTC times to ISO format with timezone indicator
-    # This ensures JavaScript parses them correctly and converts to local time
-    started_at = (log.started_at.isoformat() + 'Z') if log.started_at else None
-    finished_at = (log.finished_at.isoformat() + 'Z') if log.finished_at else None
+    # Convert UTC times to CEST for display
+    def to_cest(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+        return dt.astimezone(AMSTERDAM_TZ).strftime('%Y-%m-%d %H:%M:%S')
     
     return jsonify({
         'status': log.status, 'sync_type': log.sync_type,
-        'started_at': started_at,
-        'finished_at': finished_at,
+        'started_at': (log.started_at.isoformat() + 'Z') if log.started_at else None,
+        'finished_at': (log.finished_at.isoformat() + 'Z') if log.finished_at else None,
+        'started_at_cest': to_cest(log.started_at),
+        'finished_at_cest': to_cest(log.finished_at),
         'releases_added': log.releases_added, 'releases_updated': log.releases_updated,
         'error_message': log.error_message, 'triggered_by': log.triggered_by,
         'verification_status': log.verification_status,

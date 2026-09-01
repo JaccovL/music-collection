@@ -191,6 +191,16 @@ class SyncService:
             new_releases = []
             
             for folder in folders:
+                # Check for cancellation between folders
+                from app import _is_cancelled
+                if _is_cancelled('collection'):
+                    logger.info("Collection sync cancelled by user")
+                    log.status = 'error'
+                    log.error_message = 'Cancelled by user'
+                    log.finished_at = _now()
+                    db.session.commit()
+                    return
+                
                 folder_id = folder['id']
                 folder_name = folder['name']
                 logger.info(f"Syncing folder: {folder_name} (id={folder_id})")
@@ -227,6 +237,15 @@ class SyncService:
             if fetch_country and new_releases:
                 logger.info(f"Fetching country for {len(new_releases)} new releases")
                 for release in new_releases:
+                    # Check for cancellation between releases
+                    from app import _is_cancelled
+                    if _is_cancelled('collection'):
+                        logger.info("Collection sync cancelled during country fetch")
+                        log.status = 'error'
+                        log.error_message = 'Cancelled by user'
+                        log.finished_at = _now()
+                        db.session.commit()
+                        return
                     try:
                         self._fetch_release_country(release)
                         db.session.commit()
