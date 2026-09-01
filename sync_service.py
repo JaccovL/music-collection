@@ -46,6 +46,11 @@ def _sync_tracks_for_releases(releases, client, log_entry=None):
     """Fetch and store tracklists for releases without tracks. Shared by sync_all, track sync, and cron."""
     total = len(releases)
     if total == 0:
+        logger.info("No releases to sync tracks for")
+        if log_entry:
+            log_entry.status = 'success'
+            log_entry.finished_at = _now()
+            db.session.commit()
         return
     
     logger.info(f"Syncing tracks for {total} releases")

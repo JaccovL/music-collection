@@ -860,6 +860,8 @@ def trigger_sync():
         try:
             service = SyncService(token, username)
             service.sync_collection(triggered_by='manual', fetch_country=True)
+        except Exception as e:
+            logging.error(f"Collection sync failed: {e}")
         finally:
             _sync_lock.release()
     
@@ -887,6 +889,12 @@ def trigger_track_sync():
             token = get_setting('discogs_token', '') or app_instance.config.get('DISCOGS_TOKEN', '')
             username = get_setting('discogs_username', '') or app_instance.config.get('DISCOGS_USERNAME', '')
             if not token or not username:
+                log_entry = UpdateLog.query.filter_by(sync_type='track', status='running').order_by(UpdateLog.id.desc()).first()
+                if log_entry:
+                    log_entry.status = 'error'
+                    log_entry.error_message = 'Discogs credentials not configured'
+                    log_entry.finished_at = now_amsterdam()
+                    db.session.commit()
                 return
             
             client = DiscogsClient(token, username)
@@ -1156,6 +1164,16 @@ def init_db():
             db.session.add(admin)
             db.session.commit()
             logger.info("Created default admin user")
+        
+        # Fix #4: Mark any "running" logs as "error" — app was restarted mid-sync
+        stuck_logs = UpdateLog.query.filter_by(status='running').all()
+        for log in stuck_logs:
+            log.status = 'error'
+            log.error_message = 'Sync interrupted (app restarted)'
+            log.finished_at = now_amsterdam()
+            logger.info(f"Marking stuck {log.sync_type} log {log.id} as error")
+        if stuck_logs:
+            db.session.commit()
 
 init_db()
 start_scheduler()
