@@ -8,8 +8,10 @@ AMSTERDAM_TZ = ZoneInfo('Europe/Amsterdam')
 def _now():
     """Get current time in UTC for storage."""
     return datetime.utcnow()
+
 from models import db, Artist, Release, Track, UpdateLog, Wantlist
 from discogs_client import DiscogsClient
+from cancel_events import is_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +194,7 @@ class SyncService:
             
             for folder in folders:
                 # Check for cancellation between folders
-                from app import _is_cancelled
-                if _is_cancelled('collection'):
+                if is_cancelled('collection'):
                     logger.info("Collection sync cancelled by user")
                     log.status = 'error'
                     log.error_message = 'Cancelled by user'
@@ -217,8 +218,7 @@ class SyncService:
                     
                     for item in releases:
                         # Check for cancellation between releases
-                        from app import _is_cancelled
-                        if _is_cancelled('collection'):
+                        if is_cancelled('collection'):
                             logger.info("Collection sync cancelled by user")
                             log.status = 'error'
                             log.error_message = 'Cancelled by user'
@@ -248,8 +248,7 @@ class SyncService:
                 logger.info(f"Fetching country for {len(new_releases)} new releases")
                 for release in new_releases:
                     # Check for cancellation between releases
-                    from app import _is_cancelled
-                    if _is_cancelled('collection'):
+                    if is_cancelled('collection'):
                         logger.info("Collection sync cancelled during country fetch")
                         log.status = 'error'
                         log.error_message = 'Cancelled by user'

@@ -195,26 +195,24 @@ def _run_in_background(fn, sync_type=None):
                 logging.error(f"Background task {fn.__name__} failed: {e}")
             finally:
                 if sync_type:
-                    _active_syncs.pop(sync_type, None)
+                    with _active_syncs_lock:
+                        _active_syncs.pop(sync_type, None)
     
     thread = threading.Thread(target=wrapper, args=(app,))
     if sync_type:
-        _active_syncs[sync_type] = thread
+        with _active_syncs_lock:
+            _active_syncs[sync_type] = thread
     thread.start()
 
+
+from cancel_events import is_cancelled, reset_cancel, set_cancel
 
 # Sync lock to prevent concurrent syncs
 _sync_lock = threading.Lock()
 
-# Cancel events for running syncs
-_cancel_events = {
-    'collection': threading.Event(),
-    'track': threading.Event(),
-    'wantlist': threading.Event(),
-}
-
-# Track running sync threads
+# Track running sync threads (thread-safe with lock)
 _active_syncs = {}
+_active_syncs_lock = threading.Lock()
 
 
 @app.route('/admin/cancel-sync', methods=['POST'])
@@ -225,14 +223,12 @@ def cancel_sync():
     data = request.get_json() or {}
     sync_type = data.get('sync_type', 'collection')
     
-    if sync_type not in _cancel_events:
-        return jsonify({'error': 'Invalid sync type'}), 400
-    
-    if sync_type not in _active_syncs:
-        return jsonify({'error': f'No active {sync_type} sync to cancel'}), 404
+    with _active_syncs_lock:
+        if sync_type not in _active_syncs:
+            return jsonify({'error': f'No active {sync_type} sync to cancel'}), 404
     
     # Signal cancellation
-    _cancel_events[sync_type].set()
+    set_cancel(sync_type)
     
     # Update log
     log = UpdateLog.query.filter_by(sync_type=sync_type, status='running').order_by(UpdateLog.id.desc()).first()
@@ -247,13 +243,12 @@ def cancel_sync():
 
 def _is_cancelled(sync_type):
     """Check if a sync has been cancelled."""
-    return _cancel_events.get(sync_type, threading.Event()).is_set()
+    return is_cancelled(sync_type)
 
 
 def _reset_cancel(sync_type):
     """Reset the cancel event for a sync type."""
-    if sync_type in _cancel_events:
-        _cancel_events[sync_type].clear()
+    reset_cancel(sync_type)
 
 
 # ==================== ADMIN / SETTINGS ====================
@@ -591,8 +586,9 @@ def reset_collection():
         _health_cache.invalidate()
         
         # Reset cancel events for clean state
-        for event in _cancel_events.values():
-            event.clear()
+        reset_cancel('collection')
+        reset_cancel('track')
+        reset_cancel('wantlist')
         
         return jsonify({'status': 'success', 'message': 'Collection cleared. You can now sync fresh from Discogs.'})
     except Exception as e:
@@ -1154,7 +1150,9 @@ def _reschedule_sync():
     """Reschedule the sync job based on current settings."""
     try:
         interval = int(get_setting('update_interval_hours', '24') or '24')
-        if 'sync_job' in scheduler._jobstore:
+        # Use public API instead of private _jobstore
+        jobs = scheduler.get_jobs()
+        if any(j.id == 'sync_job' for j in jobs):
             scheduler.remove_job('sync_job')
         scheduler.add_job(_scheduled_sync, 'interval', hours=interval, id='sync_job')
     except Exception as e:

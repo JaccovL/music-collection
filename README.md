@@ -26,6 +26,17 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.0.5 (2026-09-02)
+- **Search join fix** — Explicitly join Artist table in `apply_common_filters()`
+- **Batch track count API** — New `/api/track-counts` endpoint (N+1 → 1 query)
+- **CSRF protection** — Added Flask-WTF CSRFProtect to all forms
+
+### v2.0.4 (2026-09-01)
+- **Track sync empty releases fix** — No longer stays stuck as "running" when there are no releases to process
+- **Missing credentials fix** — Track sync logs an error and releases lock if Discogs credentials are missing
+- **Collection sync logging** — Proper error logging for debugging
+- **Startup recovery** — Stuck "running" logs automatically marked as "error" on app restart
+
 ### v2.0.3 (2026-08-30)
 - **Cancel Sync Button** — Stop collection, track, or wantlist syncs mid-flight with smart visibility (only shows when sync is active)
 - **Timezone Fix (CEST/CET)** — All timestamps now stored in UTC and converted to Amsterdam time for display

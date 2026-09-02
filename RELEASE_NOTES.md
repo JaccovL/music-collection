@@ -1,17 +1,20 @@
-# Release v2.0.4
+# Release v2.0.5
 
 ## What's New
 
-### Track Sync Fixes
-- **Empty releases fix** — Track sync now correctly updates log status to "success" when there are no releases to process (instead of staying stuck as "running" forever)
-- **Missing credentials fix** — Track sync now logs an error and releases the sync lock if Discogs credentials are missing (instead of blocking all future syncs)
-- **Collection sync logging** — Collection sync now has proper error logging for debugging
-- **Startup recovery** — On app restart, any sync logs stuck in "running" state are automatically marked as "error" (app was restarted mid-sync)
+### High Priority Fixes
+- **Search join fix** — Explicitly join Artist table in `apply_common_filters()` (was relying on implicit relationship)
+- **Batch track count API** — New `/api/track-counts` endpoint returns all track counts in single query (N+1 → 1)
+- **CSRF protection** — Added Flask-WTF CSRFProtect to all forms (login, settings)
 
 ### Files Modified
-- `app.py` — `trigger_track_sync()` handles missing credentials, `trigger_sync()` has error logging, `init_db()` recovers stuck logs
-- `sync_service.py` — `_sync_tracks_for_releases()` updates log even when releases list is empty
+- `app.py` — Explicit Artist join in `apply_common_filters()`, new `/api/track-counts` batch endpoint, CSRFProtect initialization
+- `sync_service.py` — Collection sync checks cancel flag between folders and releases
+- `search.html` — `loadTrackCounts()` uses batch endpoint instead of individual API calls
+- `login.html` — CSRF token added
+- `admin_settings.html` — CSRF token added
+- `admin_sync_status.html` — Duplicate flash message fix (`.verification-alert` class)
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.3...v2.0.4
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.4...v2.0.5
