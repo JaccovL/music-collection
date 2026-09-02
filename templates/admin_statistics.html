@@ -1,278 +1,119 @@
 {% extends "base.html" %}
-{% block title %}Statistics Dashboard - Music Collection{% endblock %}
+
+{% block title %}Statistics - Music Collection{% endblock %}
 
 {% block content %}
-<div class="statistics-page">
-    <h1>Statistics Dashboard</h1>
-    <p class="page-subtitle">Visual breakdowns of your music collection</p>
+<div class="stats-page">
+    <h1>Collection Statistics</h1>
     
-    <!-- Summary Cards -->
     <div class="stats-summary">
         <div class="stat-card">
-            <div class="stat-icon">💿</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-releases">...</span>
-                <span class="stat-label">Releases</span>
-            </div>
+            <h3>Total Releases</h3>
+            <p class="stat-value" id="stat-releases">-</p>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">🎤</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-artists">...</span>
-                <span class="stat-label">Artists</span>
-            </div>
+            <h3>Total Artists</h3>
+            <p class="stat-value" id="stat-artists">-</p>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">🎵</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-tracks">...</span>
-                <span class="stat-label">Tracks</span>
-            </div>
+            <h3>Total Tracks</h3>
+            <p class="stat-value" id="stat-tracks">-</p>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">📅</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-year-range">...</span>
-                <span class="stat-label">Year Range</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">📊</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-avg-tracks">...</span>
-                <span class="stat-label">Avg Tracks</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">💿</div>
-            <div class="stat-info">
-                <span class="stat-value" id="stat-top-format">...</span>
-                <span class="stat-label">Top Format</span>
-            </div>
+            <h3>Year Range</h3>
+            <p class="stat-value" id="stat-years">-</p>
         </div>
     </div>
     
-    <!-- Charts Grid -->
-    <div class="charts-grid">
-        <div class="chart-card chart-large">
-            <h3>Releases by Style</h3>
-            <div class="chart-container">
-                <canvas id="chart-style"></canvas>
-            </div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Collection Growth</h3>
+            <div class="chart-container" id="chart-growth"></div>
         </div>
-        
-        <div class="chart-card chart-large">
-            <h3>Releases by Format</h3>
-            <div class="chart-container">
-                <canvas id="chart-format"></canvas>
-            </div>
+        <div class="stat-card">
+            <h3>Most Collected Artists</h3>
+            <div class="chart-container" id="chart-artists"></div>
         </div>
-        
-        <div class="chart-card chart-large">
+        <div class="stat-card">
+            <h3>Style Distribution</h3>
+            <div class="chart-container" id="chart-style"></div>
+        </div>
+        <div class="stat-card">
+            <h3>Format Distribution</h3>
+            <div class="chart-container" id="chart-format"></div>
+        </div>
+        <div class="stat-card">
             <h3>Releases by Decade</h3>
-            <div class="chart-container">
-                <canvas id="chart-decade"></canvas>
-            </div>
+            <div class="chart-container" id="chart-decade"></div>
         </div>
-        
-        <div class="chart-card chart-large">
-            <h3>Releases by Country</h3>
-            <div class="chart-container">
-                <canvas id="chart-country"></canvas>
-            </div>
-        </div>
-        
-        <div class="chart-card chart-large">
-            <h3>Releases by Label</h3>
-            <div class="chart-container">
-                <canvas id="chart-label"></canvas>
-            </div>
+        <div class="stat-card">
+            <h3>Country Distribution</h3>
+            <div class="chart-container" id="chart-country"></div>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Color palette
-const COLORS = [
-    '#6200ee', '#03dac6', '#ff0266', '#ff6d00', '#ffab00',
-    '#64dd17', '#00bfa5', '#2979ff', '#651fff', '#d500f9',
-    '#ff1744', '#00e676', '#2962ff', '#aa00ff', '#00b8d4',
-    '#304ffe', '#c51162', '#00c853', '#6200ea', '#ffd600'
-];
-
-// Fetch summary data
-fetch('{{ url_for("statistics_api", chart_type="summary") }}')
+// Load summary data
+fetch('{{ url_for("admin.statistics_api", chart_type="summary") }}')
     .then(r => r.json())
     .then(data => {
         document.getElementById('stat-releases').textContent = data.total_releases.toLocaleString();
         document.getElementById('stat-artists').textContent = data.total_artists.toLocaleString();
         document.getElementById('stat-tracks').textContent = data.total_tracks.toLocaleString();
-        document.getElementById('stat-year-range').textContent = data.year_min && data.year_max ? data.year_min + ' - ' + data.year_max : 'N/A';
-        document.getElementById('stat-avg-tracks').textContent = data.avg_tracks_per_release;
-        document.getElementById('stat-top-format').textContent = data.top_format;
+        document.getElementById('stat-years').textContent = (data.year_min || '?') + ' - ' + (data.year_max || '?');
     });
 
-// Chart configurations
-Chart.defaults.color = '#b0b0b0';
-Chart.defaults.borderColor = '#333';
-
-// Helper: shorten labels for pie/doughnut charts
-function shortenLabel(label, maxLen) {
-    if (!label) return '';
-    label = label.replace(/[’']/g, "'");
-    return label.length > maxLen ? label.substring(0, maxLen - 1) + '…' : label;
-}
-
-// Style Chart (Doughnut)
-fetch('{{ url_for("statistics_api", chart_type="style") }}')
+// Load charts
+fetch('{{ url_for("admin.statistics_api", chart_type="style") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-style'), {
-            type: 'doughnut',
-            data: {
-                labels: data.map(d => shortenLabel(d.label, 30)),
-                datasets: [{
-                    data: data.map(d => d.value),
-                    backgroundColor: COLORS,
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: 10 },
-                plugins: {
-                    legend: { 
-                        position: 'right', 
-                        labels: { 
-                            padding: 8, 
-                            font: { size: 10 },
-                            boxWidth: 12,
-                            boxHeight: 12
-                        } 
-                    }
-                }
-            }
-        });
+        document.getElementById('chart-style').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/10,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('');
     });
 
-// Format Chart (Pie)
-fetch('{{ url_for("statistics_api", chart_type="format") }}')
+fetch('{{ url_for("admin.statistics_api", chart_type="format") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-format'), {
-            type: 'pie',
-            data: {
-                labels: data.map(d => shortenLabel(d.label, 30)),
-                datasets: [{
-                    data: data.map(d => d.value),
-                    backgroundColor: COLORS,
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: 10 },
-                plugins: {
-                    legend: { 
-                        position: 'right', 
-                        labels: { 
-                            padding: 8, 
-                            font: { size: 10 },
-                            boxWidth: 12,
-                            boxHeight: 12
-                        } 
-                    }
-                }
-            }
-        });
+        document.getElementById('chart-format').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/10,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('');
     });
 
-// Decade Chart (Bar)
-fetch('{{ url_for("statistics_api", chart_type="decade") }}')
+fetch('{{ url_for("admin.statistics_api", chart_type="decade") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-decade'), {
-            type: 'bar',
-            data: {
-                labels: data.map(d => d.label),
-                datasets: [{
-                    label: 'Releases',
-                    data: data.map(d => d.value),
-                    backgroundColor: '#6200ee',
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: '#333' } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
+        document.getElementById('chart-decade').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/10,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('');
     });
 
-// Country Chart (Horizontal Bar)
-fetch('{{ url_for("statistics_api", chart_type="country") }}')
+fetch('{{ url_for("admin.statistics_api", chart_type="country") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-country'), {
-            type: 'bar',
-            data: {
-                labels: data.map(d => d.label),
-                datasets: [{
-                    label: 'Releases',
-                    data: data.map(d => d.value),
-                    backgroundColor: '#03dac6',
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true, grid: { color: '#333' } },
-                    y: { grid: { display: false } }
-                }
-            }
-        });
+        document.getElementById('chart-country').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/10,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('');
     });
 
-// Label Chart (Horizontal Bar)
-fetch('{{ url_for("statistics_api", chart_type="label") }}')
+// New Phase 4.8 charts
+fetch('{{ url_for("admin.statistics_api_growth") }}')
     .then(r => r.json())
     .then(data => {
-        new Chart(document.getElementById('chart-label'), {
-            type: 'bar',
-            data: {
-                labels: data.map(d => d.label),
-                datasets: [{
-                    label: 'Releases',
-                    data: data.map(d => d.value),
-                    backgroundColor: '#ff6d00',
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true, grid: { color: '#333' } },
-                    y: { grid: { display: false } }
-                }
-            }
-        });
+        document.getElementById('chart-growth').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/5,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('') || '<p class="text-muted">No data yet</p>';
+    });
+
+fetch('{{ url_for("admin.statistics_api_artists_top") }}')
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('chart-artists').innerHTML = data.map(d => 
+            '<div class="bar-row"><span class="bar-label">' + d.label + '</span><div class="bar" style="width:' + Math.min(d.value/5,100) + '%"></div><span class="bar-value">' + d.value + '</span></div>'
+        ).join('') || '<p class="text-muted">No data yet</p>';
     });
 </script>
 {% endblock %}
