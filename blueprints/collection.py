@@ -55,6 +55,11 @@ def search():
         format_filter=filters['format_filter'],
         style_filter=filters['style_filter'], label_filter=filters['label_filter'],
         year_from=filters['year_from'], year_to=filters['year_to'],
+        tracks_min=filters.get('tracks_min', ''),
+        tracks_max=filters.get('tracks_max', ''),
+        date_from=filters.get('date_from', ''),
+        date_to=filters.get('date_to', ''),
+        has_notes=filters.get('has_notes', ''),
         **get_filter_options()
     )
 

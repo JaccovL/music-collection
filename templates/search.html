@@ -52,6 +52,32 @@
                     <input type="number" id="filter-year-to" placeholder="To" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
                 </div>
             </div>
+            
+            <!-- Phase 4.6: Advanced Search -->
+            <div class="filter-group filter-group-tracks">
+                <label>Tracks</label>
+                <div class="year-inputs">
+                    <input type="number" id="filter-tracks-min" placeholder="Min" class="input-xs" value="{{ tracks_min }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-tracks-max" placeholder="Max" class="input-xs" value="{{ tracks_max }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                </div>
+            </div>
+            
+            <div class="filter-group filter-group-date">
+                <label>Date Added</label>
+                <div class="year-inputs">
+                    <input type="date" id="filter-date-from" class="input-xs" value="{{ date_from }}" onchange="applyFilters()">
+                    <input type="date" id="filter-date-to" class="input-xs" value="{{ date_to }}" onchange="applyFilters()">
+                </div>
+            </div>
+            
+            <div class="filter-group filter-group-notes">
+                <label>Has Notes</label>
+                <select id="filter-has-notes" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="yes" {% if has_notes == 'yes' %}selected{% endif %}>Yes</option>
+                    <option value="no" {% if has_notes == 'no' %}selected{% endif %}>No</option>
+                </select>
+            </div>
         </div>
         
         <!-- View options -->
@@ -183,8 +209,18 @@ function applyFilters() {
     const label = document.getElementById('filter-label').value;
     const yearFrom = document.getElementById('filter-year-from').value;
     const yearTo = document.getElementById('filter-year-to').value;
+    const tracksMin = document.getElementById('filter-tracks-min').value;
+    const tracksMax = document.getElementById('filter-tracks-max').value;
+    const dateFrom = document.getElementById('filter-date-from').value;
+    const dateTo = document.getElementById('filter-date-to').value;
+    const hasNotes = document.getElementById('filter-has-notes').value;
     
     const params = new URLSearchParams({q, format, style, label, year_from: yearFrom, year_to: yearTo, per_page: {{ per_page }}});
+    if (tracksMin) params.set('tracks_min', tracksMin);
+    if (tracksMax) params.set('tracks_max', tracksMax);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (hasNotes) params.set('has_notes', hasNotes);
     window.location.href = '{{ url_for("collection.search") }}?' + params.toString();
 }
 

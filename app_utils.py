@@ -95,10 +95,17 @@ def get_request_filters():
         'label_filter': request.args.get('label', '').strip(),
         'year_from': request.args.get('year_from', '').strip(),
         'year_to': request.args.get('year_to', '').strip(),
+        # Phase 4.6: Advanced search
+        'tracks_min': request.args.get('tracks_min', '').strip(),
+        'tracks_max': request.args.get('tracks_max', '').strip(),
+        'date_from': request.args.get('date_from', '').strip(),
+        'date_to': request.args.get('date_to', '').strip(),
+        'has_notes': request.args.get('has_notes', '').strip(),
     }
 
 
-def apply_common_filters(q, search, format_filter, style_filter, label_filter, year_from, year_to, model=None):
+def apply_common_filters(q, search, format_filter, style_filter, label_filter, year_from, year_to, model=None,
+                         tracks_min=None, tracks_max=None, date_from=None, date_to=None, has_notes=None):
     """Apply common filters to a query. Uses FULLTEXT search when available."""
     from models import Release, Artist, Track, Wantlist
     from sqlalchemy import text
@@ -152,6 +159,31 @@ def apply_common_filters(q, search, format_filter, style_filter, label_filter, y
         q = q.filter(model.year >= int(year_from))
     if year_to:
         q = q.filter(model.year <= int(year_to))
+    
+    # Phase 4.6: Advanced search filters
+    if tracks_min or tracks_max:
+        from sqlalchemy import func
+        track_count = db.session.query(
+            Track.release_id, func.count(Track.id).label('cnt')
+        ).group_by(Track.release_id).subquery()
+        
+        if tracks_min:
+            q = q.outerjoin(track_count, track_count.c.release_id == model.id)
+            q = q.filter(track_count.c.cnt >= int(tracks_min))
+        if tracks_max:
+            if not tracks_min:
+                q = q.outerjoin(track_count, track_count.c.release_id == model.id)
+            q = q.filter(track_count.c.cnt <= int(tracks_max))
+    
+    if date_from:
+        q = q.filter(model.date_added >= date_from)
+    if date_to:
+        q = q.filter(model.date_added <= date_to)
+    
+    if has_notes == 'yes':
+        q = q.filter(model.notes.isnot(None) & (model.notes != ''))
+    elif has_notes == 'no':
+        q = q.filter(model.notes.is_(None) | (model.notes == ''))
     
     return q
 
