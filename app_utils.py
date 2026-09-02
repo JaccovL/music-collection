@@ -2,7 +2,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from functools import wraps
-from flask import request, redirect, url_for, flash, current_user
+from flask import request, redirect, url_for, flash
+from flask_login import current_user
 from flask_login import login_required as flask_login_required
 from extensions import db
 

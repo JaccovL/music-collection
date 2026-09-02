@@ -117,21 +117,41 @@
     
     <!-- Content -->
     <div class="collection-content" id="collection-content">
+        <!-- Phase 4.7: Bulk Actions Bar -->
+        <div class="bulk-actions-bar" id="bulk-actions-bar" style="display:none;">
+            <div class="bulk-actions-left">
+                <label class="bulk-checkbox">
+                    <input type="checkbox" id="select-all-visible" onchange="toggleSelectAllVisible()">
+                    <span>Select all visible</span>
+                </label>
+                <span class="selected-count" id="selected-count">0 selected</span>
+            </div>
+            <div class="bulk-actions-right">
+                <button class="btn btn-sm" onclick="bulkAddNotes()" title="Add notes to selected">📝 Add Notes</button>
+                <button class="btn btn-sm" onclick="bulkExportCSV()" title="Export selected to CSV">📊 Export CSV</button>
+                <button class="btn btn-sm" onclick="clearSelection()" title="Clear selection">Clear</button>
+            </div>
+        </div>
+        
         <!-- Table view -->
         <div class="table-view" id="table-view">
-            <table class="data-table">
+            <table class="data-table collection-table">
                 <thead>
                     <tr>
-                        <th class="col-thumb" data-sort="thumb"></th>
-                        <th class="col-artist" data-sort="artist"><span>Artist</span></th>
-                        <th class="col-title" data-sort="title"><span>Title</span></th>
-                        <th class="col-year" data-sort="year"><span>Year</span></th>
-                        <th class="col-format" data-sort="format"><span>Format</span></th>
-                        <th class="col-style" data-sort="style"><span>Style</span></th>
-                        <th class="col-label" data-sort="label"><span>Label</span></th>
-                        <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
-                        <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
+                        <th class="col-checkbox" style="width:30px;">
+                            <input type="checkbox" id="select-all-visible-th" onchange="toggleSelectAllVisible()" title="Select all visible">
+                        </th>
+                        <th class="col-thumb"></th>
+                        <th class="col-artist sortable {% if sort == 'artist' %}{{ 'sort-' + order }}{% endif %}" data-sort="artist"><span>Artist</span></th>
+                        <th class="col-title sortable {% if sort == 'title' %}{{ 'sort-' + order }}{% endif %}" data-sort="title"><span>Title</span></th>
+                        <th class="col-year sortable {% if sort == 'year' %}{{ 'sort-' + order }}{% endif %}" data-sort="year"><span>Year</span></th>
+                        <th class="col-format sortable {% if sort == 'format' %}{{ 'sort-' + order }}{% endif %}" data-sort="format"><span>Format</span></th>
+                        <th class="col-style sortable {% if sort == 'style' %}{{ 'sort-' + order }}{% endif %}" data-sort="style"><span>Style</span></th>
+                        <th class="col-label sortable {% if sort == 'label' %}{{ 'sort-' + order }}{% endif %}" data-sort="label"><span>Label</span></th>
+                        <th class="col-catalog sortable {% if sort == 'catalog' %}{{ 'sort-' + order }}{% endif %}" data-sort="catalog"><span>Catalog #</span></th>
+                        <th class="col-date_added sortable {% if sort == 'date_added' %}{{ 'sort-' + order }}{% endif %}" data-sort="date_added"><span>Date Added</span></th>
                         <th class="col-tracks" data-sort="tracks"><span>Tracks</span></th>
+                        <th class="col-view"><span>View</span></th>
                     </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
@@ -260,6 +280,77 @@ function changePerPage() {
     params.set('per_page', perPage);
     params.set('page', 1);
     window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+// Phase 4.7: Bulk Actions
+let selectedIds = new Set();
+
+function toggleSelectAllVisible() {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const selectAll = document.getElementById('select-all-visible').checked;
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll;
+        const id = parseInt(cb.dataset.id);
+        if (selectAll) {
+            selectedIds.add(id);
+        } else {
+            selectedIds.delete(id);
+        }
+    });
+    updateBulkBar();
+}
+
+function toggleRowCheckbox(id, checked) {
+    if (checked) {
+        selectedIds.add(id);
+    } else {
+        selectedIds.delete(id);
+    }
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const count = document.getElementById('selected-count');
+    if (selectedIds.size > 0) {
+        bar.style.display = 'flex';
+        count.textContent = selectedIds.size + ' selected';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function clearSelection() {
+    selectedIds.clear();
+    document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('select-all-visible').checked = false;
+    document.getElementById('select-all-visible-th').checked = false;
+    updateBulkBar();
+}
+
+function bulkAddNotes() {
+    if (selectedIds.size === 0) return;
+    const notes = prompt('Add notes to ' + selectedIds.size + ' selected releases:');
+    if (!notes) return;
+    
+    fetch('/api/bulk/add-notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf_token},
+        body: JSON.stringify({ids: Array.from(selectedIds), notes: notes})
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message || 'Notes added to ' + data.updated + ' releases');
+        clearSelection();
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function bulkExportCSV() {
+    if (selectedIds.size === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('ids', Array.from(selectedIds).join(','));
+    window.location.href = '/export/csv?' + params.toString() + '&source=collection';
 }
 </script>
 {% endblock %}

@@ -56,20 +56,28 @@ def statistics_api_artists_top():
     return jsonify(result)
 
 
-@admin_bp.route('/admin/statistics-api/format-trend')
+@admin_bp.route('/api/bulk/add-notes', methods=['POST'])
 @login_required
 @admin_required
-def statistics_api_format_trend():
-    """Return format distribution over time (by year)."""
-    from sqlalchemy import func
+def bulk_add_notes():
+    """Add notes to multiple releases."""
+    data = request.get_json() or {}
+    ids = data.get('ids', [])
+    notes = data.get('notes', '')
     
-    data = db.session.query(
-        func.ifnull(Release.format, 'Unknown').label('format'),
-        func.count(Release.id).label('count')
-    ).group_by('format').order_by(func.count(Release.id).desc()).limit(8).all()
+    if not ids or not notes:
+        return jsonify({'error': 'IDs and notes required'}), 400
     
-    result = [{'label': d[0] or 'Unknown', 'value': d[1]} for d in data]
-    return jsonify(result)
+    updated = 0
+    for release_id in ids:
+        release = Release.query.get(release_id)
+        if release:
+            release.notes = (release.notes or '') + '\n' + notes if release.notes else notes
+            updated += 1
+    
+    db.session.commit()
+    return jsonify({'status': 'success', 'updated': updated, 'message': f'Notes added to {updated} releases'})
+
 
 def _run_in_background(fn, sync_type=None):
     """Run a function in a background thread with app context."""
