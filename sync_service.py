@@ -216,6 +216,16 @@ class SyncService:
                         break
                     
                     for item in releases:
+                        # Check for cancellation between releases
+                        from app import _is_cancelled
+                        if _is_cancelled('collection'):
+                            logger.info("Collection sync cancelled by user")
+                            log.status = 'error'
+                            log.error_message = 'Cancelled by user'
+                            log.finished_at = _now()
+                            db.session.commit()
+                            return
+                        
                         result = self._process_collection_item(item, folder_id, fetch_details=fetch_details)
                         if result == 'added':
                             total_added += 1
