@@ -478,21 +478,21 @@ function updateColumnVisibility() {
 
 // Load track counts (batch for visible releases only)
 function loadTrackCounts() {
-    const visibleReleases = releases.slice(0, 50);
-    visibleReleases.forEach(release => {
-        fetch(`/api/release-tracks/${release.id}`)
-            .then(r => r.json())
-            .then(tracks => {
-                const el = document.querySelector(`.track-count[data-id="${release.id}"]`);
+    // Fix #2: Use batch endpoint instead of individual calls (N+1 → 1 query)
+    fetch('/api/track-counts')
+        .then(r => r.json())
+        .then(counts => {
+            for (const [releaseId, count] of Object.entries(counts)) {
+                const el = document.querySelector(`.track-count[data-id="${releaseId}"]`);
                 if (el) {
-                    if (tracks.length === 0) {
+                    if (count === 0) {
                         el.innerHTML = '<span class="no-tracks" title="No tracks synced">⚠️</span>';
                     } else {
-                        el.textContent = tracks.length;
+                        el.textContent = count;
                     }
                 }
-            });
-    });
+            }
+        });
 }
 
 // Set view

@@ -6,6 +6,7 @@
     <h1>Settings</h1>
     
     <form method="POST" class="settings-form" id="settings-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <section class="settings-section">
             <h2>Discogs Integration</h2>
             <div class="form-row">

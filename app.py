@@ -3,6 +3,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_wtf.csrf import CSRFProtect
 from apscheduler.schedulers.background import BackgroundScheduler
 from functools import wraps
 import threading
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
+csrf = CSRFProtect(app)
 
 db.init_app(app)
 
@@ -135,6 +137,8 @@ def apply_common_filters(q, search, format_filter, style_filter, label_filter, y
     if search:
         search_filter = f"%{search}%"
         if model == Release:
+            # Fix #1: Explicitly join Artist (was relying on implicit relationship)
+            q = q.join(Artist, Artist.id == Release.artist_id)
             q = q.outerjoin(Track, Track.release_id == Release.id)
             q = q.filter(db.or_(
                 Release.title.like(search_filter),
@@ -463,6 +467,14 @@ def api_search():
 def api_release_tracks(release_id):
     tracks = Track.query.filter_by(release_id=release_id).order_by(Track.position).all()
     return jsonify([{'position': t.position, 'title': t.title, 'duration': t.duration} for t in tracks])
+
+@app.route('/api/track-counts')
+@login_required
+def api_track_counts():
+    """Batch endpoint for track counts — returns counts for all releases at once."""
+    from sqlalchemy import func
+    counts = dict(db.session.query(Track.release_id, func.count(Track.id)).group_by(Track.release_id).all())
+    return jsonify(counts)
 
 @app.route('/api/discogs-release/<int:discogs_id>')
 @login_required
