@@ -10,7 +10,7 @@
             <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
-            <a href="{{ url_for('wantlist') }}" class="btn">Reset</a>
+            <a href="{{ url_for('wantlist.wantlist') }}" class="btn">Reset</a>
         </div>
         
         <div class="filters-row" id="filters-row">
@@ -105,7 +105,7 @@
                         <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
                         <th class="col-rating" data-sort="rating"><span>Rating</span></th>
                         <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
-                        </tr>
+                    </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
             </table>
@@ -130,7 +130,7 @@
     {% if pages > 1 %}
     <div class="pagination">
         {% if page > 1 %}
-        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page-1) }}" class="btn btn-sm">← Prev</a>
+        <a href="{{ url_for('wantlist.wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page-1) }}" class="btn btn-sm">← Prev</a>
         {% endif %}
         
         <div class="page-goto">
@@ -150,7 +150,7 @@
         </div>
         
         {% if page < pages %}
-        <a href="{{ url_for('wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page+1) }}" class="btn btn-sm">Next →</a>
+        <a href="{{ url_for('wantlist.wantlist', q=search, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=page+1) }}" class="btn btn-sm">Next →</a>
         {% endif %}
     </div>
     {% endif %}
@@ -158,280 +158,60 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/collection.js"></script>
 <script>
+// Wantlist-specific config
 const items = {{ items_json|safe }};
 const totalPages = {{ pages }};
 
-let currentView = 'table';
-let columnVisibility = {
-    thumb: true, artist: true, title: true, year: true, format: true,
-    style: true, label: true, catalog: true, rating: true, date_added: true
-};
+initCollection({
+    items: items,
+    totalPages: totalPages,
+    apiPrefix: '/api',
+    hasRating: true
+});
 
-// Escape HTML
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+// Wantlist-specific functions
+function applyFilters() {
+    const q = document.getElementById('global-search').value;
+    const format = document.getElementById('filter-format').value;
+    const style = document.getElementById('filter-style').value;
+    const label = document.getElementById('filter-label').value;
+    const yearFrom = document.getElementById('filter-year-from').value;
+    const yearTo = document.getElementById('filter-year-to').value;
+    
+    const params = new URLSearchParams({q, format, style, label, year_from: yearFrom, year_to: yearTo, per_page: {{ per_page }}});
+    window.location.href = '{{ url_for("wantlist.wantlist") }}?' + params.toString();
 }
 
-// Helper: show only first 3 comma-separated format values
-function shortFormat(text, details) {
-    if (!text && !details) return '';
-    // Combine format + format_details
-    const combined = details ? (text + ', ' + details) : (text || '');
-    const parts = combined.split(',').map(s => s.trim());
-    if (parts.length <= 3) return combined;
-    return parts.slice(0, 3).join(', ') + '…';
+function searchDiscogs() {
+    const q = document.getElementById('global-search').value;
+    if (q) window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(q) + '&type=release', '_blank');
 }
 
-// Render table view
-function renderTable() {
-    const tbody = document.getElementById('table-body');
-    tbody.innerHTML = '';
-    
-    items.forEach(item => {
-        const tr = document.createElement('tr');
-        
-        const thumbHtml = item.thumb 
-            ? `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(item.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-table">🎵</div></a>`;
-        
-        const ratingHtml = item.rating 
-            ? '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating)
-            : '';
-        
-        tr.innerHTML = `
-            <td class="col-thumb"><span class="cell-thumb">${thumbHtml}</span></td>
-            <td class="col-artist"><span class="cell-artist">${escapeHtml(item.artist)}</span></td>
-            <td class="col-title"><span class="cell-title">${escapeHtml(item.title)}</span></td>
-            <td class="col-year">${item.year || ''}</td>
-            <td class="col-format">${escapeHtml(shortFormat(item.format, item.format_details))}</td>
-            <td class="col-style">${escapeHtml(item.style)}</td>
-            <td class="col-label">${escapeHtml(item.label)}</td>
-            <td class="col-catalog">${escapeHtml(item.catalog)}</td>
-            <td class="col-rating"><span class="rating-stars">${ratingHtml}</span></td>
-            <td class="col-date_added">${item.date_added || ''}</td>
-        `;
-        tr.onclick = () => showDetail(item.id);
-        tbody.appendChild(tr);
-    });
-    
-    updateColumnVisibility();
+function exportWantlistCSV() {
+    window.location.href = '/export/csv?source=wantlist';
 }
 
-// Render cards view
-function renderCards() {
-    const container = document.getElementById('cards-view');
-    container.innerHTML = '';
-    
-    items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        
-        const thumbHtml = item.thumb 
-            ? `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(item.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${item.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-card">🎵</div></a>`;
-        
-        card.innerHTML = `
-            <div class="card-cover">${thumbHtml}</div>
-            <div class="card-info">
-                <div class="card-artist">${escapeHtml(item.artist)}</div>
-                <div class="card-title">${escapeHtml(item.title)}</div>
-                <div class="card-meta">
-                    ${item.year ? `<span>${item.year}</span>` : ''}
-                    ${item.format ? `<span>${escapeHtml(shortFormat(item.format, item.format_details))}</span>` : ''}
-                </div>
-            </div>
-        `;
-        card.onclick = () => showDetail(item.id);
-        container.appendChild(card);
-    });
+function exportWantlistPDF() {
+    window.location.href = '/export/pdf?source=wantlist';
 }
 
-// Show detail modal
-function showDetail(itemId) {
-    if (itemId.target) return;
-    const item = items.find(i => i.id === itemId);
-    if (!item) return;
-    
-    const modal = document.getElementById('detail-modal');
-    const title = document.getElementById('modal-title');
-    const body = document.getElementById('modal-body');
-    
-    title.textContent = `${item.artist} - ${item.title}`;
-    
-    const fields = [
-        ['Discogs ID', item.discogs_id],
-        ['Year', item.year],
-        ['Format', shortFormat(item.format, item.format_details)],
-        ['Style', item.style],
-        ['Label', item.label],
-        ['Date Added', item.date_added],
-        ['Notes', item.notes]
-    ];
-    
-    let html = '';
-    const coverUrl = item.cover_image_url || item.thumb;
-    if (coverUrl) {
-        html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
-    }
-    html += '<div class="modal-details">';
-    fields.forEach(([label, value]) => {
-        html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
-    });
-    if (item.rating) {
-        html += `<div class="detail-row"><dt>Rating</dt><dd>${'★'.repeat(item.rating)}${'☆'.repeat(5 - item.rating)}</dd></div>`;
-    }
-    html += '</div>';
-    
-    body.innerHTML = html;
-    modal.classList.add('open');
-    
-    // Fetch tracks from Discogs API
-    fetch(`/api/discogs-release/${item.discogs_id}`)
-        .then(r => r.json())
-        .then(data => {
-            if (data.tracks && data.tracks.length > 0) {
-                let trackHtml = '<h3>Tracklist</h3><table class="modal-tracks">';
-                data.tracks.forEach(t => {
-                    trackHtml += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
-                });
-                trackHtml += '</table>';
-                body.innerHTML += trackHtml;
-            }
-        });
-}
-
-function closeModal(event) {
-    if (!event || event.target === document.getElementById('detail-modal') || event.target.closest('.modal-close')) {
-        document.getElementById('detail-modal').classList.remove('open');
+function gotoPage() {
+    const page = document.getElementById('goto-page').value;
+    if (page) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page);
+        window.location.href = window.location.pathname + '?' + params.toString();
     }
 }
 
-// Change items per page
 function changePerPage() {
     const perPage = document.getElementById('per-page').value;
     const params = new URLSearchParams(window.location.search);
     params.set('per_page', perPage);
     params.set('page', 1);
-    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
+    window.location.href = window.location.pathname + '?' + params.toString();
 }
-
-// Go to page
-function gotoPage() {
-    const page = document.getElementById('goto-page').value;
-    const params = new URLSearchParams(window.location.search);
-    params.set('page', page);
-    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
-}
-
-// Search Discogs (public search, no API key needed)
-function searchDiscogs() {
-    const query = document.getElementById('global-search').value.trim();
-    if (!query) return;
-    window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(query) + '&type=release', '_blank');
-}
-
-// Export functions
-function exportWantlistCSV() {
-    const params = new URLSearchParams(window.location.search);
-    params.set('source', 'wantlist');
-    window.location.href = '/export/csv?' + params.toString();
-}
-
-function exportWantlistPDF() {
-    const params = new URLSearchParams(window.location.search);
-    params.set('source', 'wantlist');
-    window.location.href = '/export/pdf?' + params.toString();
-}
-
-// Apply filters
-function applyFilters() {
-    const params = new URLSearchParams();
-    
-    const search = document.getElementById('global-search').value;
-    const format = document.getElementById('filter-format').value;
-    const style = document.getElementById('filter-style').value;
-    const yearFrom = document.getElementById('filter-year-from').value;
-    const yearTo = document.getElementById('filter-year-to').value;
-    const label = document.getElementById('filter-label').value;
-    
-    if (search) params.set('q', search);
-    if (format) params.set('format', format);
-    if (style) params.set('style', style);
-    if (yearFrom) params.set('year_from', yearFrom);
-    if (yearTo) params.set('year_to', yearTo);
-    if (label) params.set('label', label);
-    
-    window.location.href = '{{ url_for("wantlist") }}?' + params.toString();
-}
-
-// Allow Enter key in goto input
-const gotoPageInput = document.getElementById('goto-page');
-if (gotoPageInput) {
-    gotoPageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') gotoPage();
-    });
-}
-
-// Initial render
-renderTable();
-
-// Sort indicators
-document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
-    const indicator = document.createElement('span');
-    indicator.className = 'sort-indicator';
-    th.appendChild(indicator);
-});
-
-// Column visibility toggle
-function toggleColumnMenu() {
-    document.getElementById('column-menu').classList.toggle('open');
-}
-
-// Close column menu when clicking outside
-document.addEventListener('click', function(e) {
-    const menu = document.getElementById('column-menu');
-    const toggle = document.querySelector('.column-toggle');
-    if (menu && !menu.contains(e.target) && !toggle.contains(e.target)) {
-        menu.classList.remove('open');
-    }
-});
-
-// Column visibility toggle
-document.querySelectorAll('#column-menu input').forEach(input => {
-    input.addEventListener('change', function() {
-        columnVisibility[this.dataset.col] = this.checked;
-        updateColumnVisibility();
-    });
-});
-
-function updateColumnVisibility() {
-    document.querySelectorAll('.data-table th, .data-table td').forEach(cell => {
-        cell.style.display = '';
-    });
-    
-    Object.entries(columnVisibility).forEach(([col, visible]) => {
-        document.querySelectorAll(`.col-${col}`).forEach(cell => {
-            cell.style.display = visible ? '' : 'none';
-        });
-    });
-}
-
-// Set view
-function setView(view) {
-    currentView = view;
-    document.getElementById('table-view').style.display = view === 'table' ? 'block' : 'none';
-    document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
-    document.getElementById('view-table').classList.toggle('active', view === 'table');
-    document.getElementById('view-cards').classList.toggle('active', view === 'cards');
-    localStorage.setItem('wantlist-view', view);
-}
-
-// Load saved view
-const savedView = localStorage.getItem('wantlist-view');
-if (savedView) setView(savedView);
 </script>
 {% endblock %}

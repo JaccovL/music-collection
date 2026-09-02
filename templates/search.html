@@ -11,7 +11,7 @@
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
             <button class="btn" onclick="randomRelease()" title="Pick a random release from current results">🎲 Random</button>
-            <a href="{{ url_for('search') }}" class="btn">Reset</a>
+            <a href="{{ url_for('collection.search') }}" class="btn">Reset</a>
         </div>
         
         <div class="filters-row" id="filters-row">
@@ -106,7 +106,6 @@
                         <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
                         <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
                         <th class="col-tracks" data-sort="tracks"><span>Tracks</span></th>
-                        <th class="col-view"><span>View</span></th>
                     </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
@@ -121,7 +120,7 @@
     <div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h2 id="modal-title">Release Details</h2>
+                <h2 id="modal-title">Release</h2>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body" id="modal-body"></div>
@@ -131,8 +130,8 @@
     <!-- Pagination -->
     {% if pagination.pages > 1 %}
     <div class="pagination">
-        {% if pagination.has_prev %}
-        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.prev_num) }}" class="btn btn-sm">← Prev</a>
+        {% if pagination.page > 1 %}
+        <a href="{{ url_for('collection.search', q=query, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=pagination.page-1) }}" class="btn btn-sm">← Prev</a>
         {% endif %}
         
         <div class="page-goto">
@@ -144,15 +143,15 @@
         
         <div class="per-page">
             <select id="per-page" onchange="changePerPage()">
-                <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
-                <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
-                <option value="500" {% if pagination.per_page == 500 %}selected{% endif %}>500</option>
-                <option value="1000" {% if pagination.per_page == 1000 %}selected{% endif %}>1000</option>
+                <option value="48" {% if per_page == 48 %}selected{% endif %}>48</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
             </select>
         </div>
         
-        {% if pagination.has_next %}
-        <a href="{{ url_for('search', q=query, sort=sort, order=order, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=pagination.per_page, page=pagination.next_num) }}" class="btn btn-sm">Next →</a>
+        {% if pagination.page < pagination.pages %}
+        <a href="{{ url_for('collection.search', q=query, format=format_filter, style=style_filter, label=label_filter, year_from=year_from, year_to=year_to, per_page=per_page, page=pagination.page+1) }}" class="btn btn-sm">Next →</a>
         {% endif %}
     </div>
     {% endif %}
@@ -160,353 +159,71 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/collection.js"></script>
 <script>
-const releases = {{ releases_json|safe }};
+// Collection-specific config
+const items = {{ releases_json|safe }};
+const totalPages = {{ pagination.pages }};
 
-let currentView = 'table';
-let currentSort = '{{ sort }}';
-let currentOrder = '{{ order }}';
-let columnVisibility = {
-    thumb: true, artist: true, title: true, year: true, format: true,
-    style: true, label: true, catalog: true,
-    date_added: true, tracks: true
-};
+initCollection({
+    items: items,
+    totalPages: totalPages,
+    apiPrefix: '/api',
+    hasRating: false
+});
 
-// Escape HTML
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+// Load track counts after render
+loadTrackCounts();
+
+// Collection-specific functions
+function applyFilters() {
+    const q = document.getElementById('global-search').value;
+    const format = document.getElementById('filter-format').value;
+    const style = document.getElementById('filter-style').value;
+    const label = document.getElementById('filter-label').value;
+    const yearFrom = document.getElementById('filter-year-from').value;
+    const yearTo = document.getElementById('filter-year-to').value;
+    
+    const params = new URLSearchParams({q, format, style, label, year_from: yearFrom, year_to: yearTo, per_page: {{ per_page }}});
+    window.location.href = '{{ url_for("collection.search") }}?' + params.toString();
 }
 
-// Helper: show only first 3 comma-separated format values
-function shortFormat(text, details) {
-    if (!text && !details) return '';
-    // Combine format + format_details
-    const combined = details ? (text + ', ' + details) : (text || '');
-    const parts = combined.split(',').map(s => s.trim());
-    if (parts.length <= 3) return combined;
-    return parts.slice(0, 3).join(', ') + '…';
+function searchDiscogs() {
+    const q = document.getElementById('global-search').value;
+    if (q) window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(q) + '&type=release', '_blank');
 }
 
-// Render table view
-function renderTable() {
-    const tbody = document.getElementById('table-body');
-    tbody.innerHTML = '';
-    
-    releases.forEach(release => {
-        const tr = document.createElement('tr');
-        
-        const thumbHtml = release.thumb 
-            ? `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(release.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-table">🎵</div></a>`;
-        
-        tr.innerHTML = `
-            <td class="col-thumb"><span class="cell-thumb">${thumbHtml}</span></td>
-            <td class="col-artist"><span class="cell-artist">${escapeHtml(release.artist)}</span></td>
-            <td class="col-title"><span class="cell-title">${escapeHtml(release.title)}</span></td>
-            <td class="col-year">${release.year || ''}</td>
-            <td class="col-format">${escapeHtml(shortFormat(release.format, release.format_details))}</td>
-            <td class="col-style">${escapeHtml(release.style)}</td>
-            <td class="col-label">${escapeHtml(release.label)}</td>
-            <td class="col-catalog">${escapeHtml(release.catalog)}</td>
-            <td class="col-date_added">${release.date_added || ''}</td>
-            <td class="col-tracks"><span class="track-count" data-id="${release.id}" data-discogs="${release.discogs_id}">...</span></td>
-            <td class="col-view"><button class="btn btn-sm" onclick="event.stopPropagation(); showDetail(${release.id})">View</button></td>
-        `;
-        tr.onclick = () => showDetail(release.id);
-        tbody.appendChild(tr);
-    });
-    
-    updateColumnVisibility();
-    loadTrackCounts();
-}
-
-// Render cards view
-function renderCards() {
-    const container = document.getElementById('cards-view');
-    container.innerHTML = '';
-    
-    releases.forEach(release => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        
-        const thumbHtml = release.thumb 
-            ? `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><img src="${escapeHtml(release.thumb)}" alt="" loading="lazy"></a>`
-            : `<a href="https://www.discogs.com/release/${release.discogs_id}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><div class="no-cover-card">🎵</div></a>`;
-        
-        card.innerHTML = `
-            <div class="card-cover">${thumbHtml}</div>
-            <div class="card-info">
-                <div class="card-artist">${escapeHtml(release.artist)}</div>
-                <div class="card-title">${escapeHtml(release.title)}</div>
-                <div class="card-meta">
-                    ${release.year ? `<span>${release.year}</span>` : ''}
-                    ${release.format ? `<span>${escapeHtml(shortFormat(release.format, release.format_details))}</span>` : ''}
-                </div>
-            </div>
-        `;
-        card.onclick = () => showDetail(release.id);
-        container.appendChild(card);
-    });
-}
-
-// Show detail modal
-function showDetail(releaseId) {
-    if (releaseId.target) return;
-    const release = releases.find(r => r.id === releaseId);
-    if (!release) {
-        // Release not on current page (e.g. from Random button) — fetch from API
-        fetch(`/api/release-detail/${releaseId}`)
-            .then(r => r.json())
-            .then(data => {
-                const modal = document.getElementById('detail-modal');
-                const title = document.getElementById('modal-title');
-                const body = document.getElementById('modal-body');
-                
-                title.textContent = `${data.artist} - ${data.title}`;
-                
-                const fields = [
-                    ['Discogs ID', data.discogs_id],
-                    ['Year', data.year],
-                    ['Format', shortFormat(data.format, data.format_details)],
-                    ['Style', data.style],
-                    ['Label', data.label],
-                    ['Date Added', data.date_added],
-                    ['Notes', data.notes]
-                ];
-                
-                let html = '';
-                const coverUrl = data.cover_image_url || data.thumb_url;
-                if (coverUrl) {
-                    html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
-                }
-                html += '<div class="modal-details">';
-                fields.forEach(([label, value]) => {
-                    html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
-                });
-                html += '</div>';
-                
-                if (data.tracks && data.tracks.length > 0) {
-                    html += '<h3>Tracklist</h3><table class="modal-tracks">';
-                    data.tracks.forEach(t => {
-                        html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
-                    });
-                    html += '</table>';
-                }
-                
-                body.innerHTML = html;
-                modal.classList.add('open');
-            });
-        return;
-    }
-    
-    fetch(`/api/release-detail/${releaseId}`)
+function randomRelease() {
+    fetch('/api/random-release')
         .then(r => r.json())
         .then(data => {
-            const modal = document.getElementById('detail-modal');
-            const title = document.getElementById('modal-title');
-            const body = document.getElementById('modal-body');
-            
-            title.textContent = `${release.artist} - ${release.title}`;
-            
-            const fields = [
-                ['Discogs ID', data.discogs_id],
-                ['Year', data.year],
-                ['Format', shortFormat(data.format, data.format_details)],
-                ['Style', data.style],
-                ['Label', data.label],
-                ['Date Added', data.date_added],
-                ['Notes', data.notes]
-            ];
-            
-            let html = '';
-            // Cover image at top (prefer full cover, fallback to thumb)
-            const coverUrl = data.cover_image_url || data.thumb_url;
-            if (coverUrl) {
-                html += '<div class="modal-cover"><img src="' + escapeHtml(coverUrl) + '" alt="Cover"></div>';
-            }
-            html += '<div class="modal-details">';
-            fields.forEach(([label, value]) => {
-                html += `<div class="detail-row"><dt>${label}</dt><dd>${escapeHtml(value) || '-'}</dd></div>`;
-            });
-            html += '</div>';
-            
-            // Tracklist
-            if (data.tracks && data.tracks.length > 0) {
-                html += '<h3>Tracklist</h3><table class="modal-tracks">';
-                data.tracks.forEach(t => {
-                    html += `<tr><td class="track-pos">${escapeHtml(t.position || '')}</td><td>${escapeHtml(t.title)}</td><td class="track-dur">${escapeHtml(t.duration || '')}</td></tr>`;
-                });
-                html += '</table>';
-            }
-            
-            body.innerHTML = html;
-            modal.classList.add('open');
+            if (data.id) window.location.href = '/release/' + data.id;
         });
 }
 
-function closeModal(event) {
-    if (!event || event.target === document.getElementById('detail-modal') || event.target.closest('.modal-close')) {
-        document.getElementById('detail-modal').classList.remove('open');
+function exportCSV() {
+    window.location.href = '/export/csv?source=collection';
+}
+
+function exportPDF() {
+    window.location.href = '/export/pdf?source=collection';
+}
+
+function gotoPage() {
+    const page = document.getElementById('goto-page').value;
+    if (page) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page);
+        window.location.href = window.location.pathname + '?' + params.toString();
     }
 }
 
-// Change items per page
 function changePerPage() {
     const perPage = document.getElementById('per-page').value;
     const params = new URLSearchParams(window.location.search);
     params.set('per_page', perPage);
     params.set('page', 1);
-    window.location.href = '/search?' + params.toString();
+    window.location.href = window.location.pathname + '?' + params.toString();
 }
-
-// Go to page
-function gotoPage() {
-    const page = document.getElementById('goto-page').value;
-    const params = new URLSearchParams(window.location.search);
-    params.set('page', page);
-    window.location.href = '/search?' + params.toString();
-}
-
-// Random release picker
-function randomRelease() {
-    const params = new URLSearchParams(window.location.search);
-    fetch('/api/random-release?' + params.toString())
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-            } else {
-                showDetail(data.id);
-            }
-        })
-        .catch(err => alert('Failed to get random release: ' + err));
-}
-
-// Search Discogs (public search, no API key needed)
-function searchDiscogs() {
-    const query = document.getElementById('global-search').value.trim();
-    if (!query) return;
-    window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(query) + '&type=release', '_blank');
-}
-
-// Export functions
-function exportCSV() {
-    const params = new URLSearchParams(window.location.search);
-    window.location.href = '/export/csv?' + params.toString();
-}
-
-function exportPDF() {
-    const params = new URLSearchParams(window.location.search);
-    window.location.href = '/export/pdf?' + params.toString();
-}
-
-// Apply filters
-function applyFilters() {
-    const params = new URLSearchParams();
-    
-    const search = document.getElementById('global-search').value;
-    const format = document.getElementById('filter-format').value;
-    const style = document.getElementById('filter-style').value;
-    const yearFrom = document.getElementById('filter-year-from').value;
-    const yearTo = document.getElementById('filter-year-to').value;
-    const label = document.getElementById('filter-label').value;
-    
-    if (search) params.set('q', search);
-    if (format) params.set('format', format);
-    if (style) params.set('style', style);
-    if (yearFrom) params.set('year_from', yearFrom);
-    if (yearTo) params.set('year_to', yearTo);
-    if (label) params.set('label', label);
-    
-    window.location.href = '{{ url_for("search") }}?' + params.toString();
-}
-
-// Allow Enter key in goto input
-const gotoPageInput = document.getElementById('goto-page');
-if (gotoPageInput) {
-    gotoPageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') gotoPage();
-    });
-}
-
-// Initial render
-renderTable();
-
-// Sort indicators
-document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
-    const indicator = document.createElement('span');
-    indicator.className = 'sort-indicator';
-    th.appendChild(indicator);
-});
-
-// Column visibility toggle
-function toggleColumnMenu() {
-    document.getElementById('column-menu').classList.toggle('open');
-}
-
-// Close column menu when clicking outside
-document.addEventListener('click', function(e) {
-    const menu = document.getElementById('column-menu');
-    const toggle = document.querySelector('.column-toggle');
-    if (menu && !menu.contains(e.target) && !toggle.contains(e.target)) {
-        menu.classList.remove('open');
-    }
-});
-
-// Column visibility toggle
-document.querySelectorAll('#column-menu input').forEach(input => {
-    input.addEventListener('change', function() {
-        columnVisibility[this.dataset.col] = this.checked;
-        updateColumnVisibility();
-    });
-});
-
-function updateColumnVisibility() {
-    document.querySelectorAll('.data-table th, .data-table td').forEach(cell => {
-        cell.style.display = '';
-    });
-    
-    Object.entries(columnVisibility).forEach(([col, visible]) => {
-        document.querySelectorAll(`.col-${col}`).forEach(cell => {
-            cell.style.display = visible ? '' : 'none';
-        });
-    });
-}
-
-// Load track counts (batch for visible releases only)
-function loadTrackCounts() {
-    // Fix #2: Use batch endpoint instead of individual calls (N+1 → 1 query)
-    fetch('/api/track-counts')
-        .then(r => r.json())
-        .then(counts => {
-            for (const [releaseId, count] of Object.entries(counts)) {
-                const el = document.querySelector(`.track-count[data-id="${releaseId}"]`);
-                if (el) {
-                    if (count === 0) {
-                        el.innerHTML = '<span class="no-tracks" title="No tracks synced">⚠️</span>';
-                    } else {
-                        el.textContent = count;
-                    }
-                }
-            }
-        });
-}
-
-// Set view
-function setView(view) {
-    currentView = view;
-    document.getElementById('table-view').style.display = view === 'table' ? 'block' : 'none';
-    document.getElementById('cards-view').style.display = view === 'cards' ? 'grid' : 'none';
-    document.getElementById('view-table').classList.toggle('active', view === 'table');
-    document.getElementById('view-cards').classList.toggle('active', view === 'cards');
-    localStorage.setItem('view', view);
-}
-
-// Load saved view
-const savedView = localStorage.getItem('view');
-if (savedView) setView(savedView);
 </script>
 {% endblock %}
