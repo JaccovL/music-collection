@@ -37,7 +37,7 @@ def api_release_tracks(release_id):
     return jsonify([{'position': t.position, 'title': t.title, 'duration': t.duration} for t in tracks])
 
 
-@api_bp.route('/api/track-counts')
+@api_bp.route('/api/track-counts', methods=['GET', 'POST'])
 @login_required
 def api_track_counts():
     """Batch endpoint for track counts — returns counts for all releases at once."""

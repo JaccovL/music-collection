@@ -37,7 +37,7 @@ def create_app():
     # Phase 5.3: Content Security Policy
     csp = {
         'default-src': "'self'",
-        'script-src': "'self'",
+        'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
         'style-src': "'self' 'unsafe-inline'",
         'img-src': "'self' https: data:",
         'font-src': "'self'",
@@ -46,6 +46,12 @@ def create_app():
         'form-action': "'self'",
         'base-uri': "'self'",
     }
+    
+    @app.context_processor
+    def inject_csp_nonce():
+        from flask import g
+        nonce = getattr(g, 'csp_nonce', '')
+        return {'csp_nonce': nonce}
     
     @app.after_request
     def set_security_headers(response):

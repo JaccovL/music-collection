@@ -11,9 +11,9 @@
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-left">
-                <a href="{{ url_for('search') }}" class="{% if request.endpoint == 'search' %}active{% endif %}">Collection</a>
+                <a href="{{ url_for('collection.search') }}" class="{% if request.endpoint == 'collection.search' %}active{% endif %}">Collection</a>
                 {% if get_setting('wantlist_enabled', 'false') == 'true' %}
-                <a href="{{ url_for('wantlist') }}" class="{% if request.endpoint == 'wantlist' or request.endpoint == 'wantlist_detail' %}active{% endif %}">Wantlist</a>
+                <a href="{{ url_for('wantlist.wantlist') }}" class="{% if request.endpoint == 'wantlist.wantlist' or request.endpoint == 'wantlist.wantlist_detail' %}active{% endif %}">Wantlist</a>
                 {% endif %}
             </div>
             <div class="nav-right">
@@ -24,19 +24,19 @@
                         <span class="dropdown-arrow">▾</span>
                     </button>
                     <div class="dropdown-menu">
-                        <a href="{{ url_for('admin_settings') }}">Configuration</a>
-                        <a href="{{ url_for('admin_sync_status') }}">Sync Status</a>
-                        <a href="{{ url_for('admin_db_stats') }}">Database Stats</a>
-                        <a href="{{ url_for('admin_statistics') }}">Collection Statistics</a>
-                        <a href="{{ url_for('admin_health') }}">Health Check</a>
+                        <a href="{{ url_for('admin.admin_settings') }}">Configuration</a>
+                        <a href="{{ url_for('admin.admin_sync_status') }}">Sync Status</a>
+                        <a href="{{ url_for('admin.admin_db_stats') }}">Database Stats</a>
+                        <a href="{{ url_for('admin.admin_statistics') }}">Collection Statistics</a>
+                        <a href="{{ url_for('admin.admin_health') }}">Health Check</a>
                         <a href="#" class="theme-toggle" id="theme-toggle" onclick="toggleTheme(); return false;">🌙 Dark</a>
                         <a href="https://github.com/JaccovL/music-collection#version-history" target="_blank" rel="noopener noreferrer">About</a>
                     </div>
                 </div>
                 {% endif %}
                 <span class="nav-user">{{ current_user.username }}</span>
-                <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
-                <a href="{{ url_for('admin_sync_status') }}" class="sync-status-badge" id="sync-badge" title="Click for sync details">
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-sm">Logout</a>
+                <a href="{{ url_for('admin.admin_sync_status') }}" class="sync-status-badge" id="sync-badge" title="Click for sync details">
                     <span class="sync-dot idle" id="sync-dot"></span>
                     <span id="sync-label">Sync</span>
                 </a>

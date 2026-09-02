@@ -10,6 +10,7 @@
             <input type="text" id="global-search" placeholder="Search by title, artist, label, style..." class="search-input" value="{{ search }}" onkeypress="if(event.key==='Enter')applyFilters()">
             <button class="btn btn-primary" onclick="applyFilters()">Search</button>
             <button class="btn" onclick="searchDiscogs()">Search Discogs</button>
+            <button class="btn" onclick="randomRelease()" title="Pick a random release from current results">🎲 Random</button>
             <a href="{{ url_for('wantlist.wantlist') }}" class="btn">Reset</a>
         </div>
         
@@ -47,8 +48,16 @@
             <div class="filter-group filter-group-year">
                 <label>Year</label>
                 <div class="year-inputs">
-                    <input type="number" id="filter-year-from" placeholder="1900" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
-                    <input type="number" id="filter-year-to" placeholder="2024" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-from" placeholder="From" class="input-xs" value="{{ year_from }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                    <input type="number" id="filter-year-to" placeholder="To" class="input-xs" value="{{ year_to }}" onchange="applyFilters()" onkeypress="if(event.key==='Enter')applyFilters()">
+                </div>
+            </div>
+            
+            <div class="filter-group filter-group-date">
+                <label>Date Added</label>
+                <div class="year-inputs">
+                    <input type="date" id="filter-date-from" class="input-xs" value="{{ date_from }}" onchange="applyFilters()">
+                    <input type="date" id="filter-date-to" class="input-xs" value="{{ date_to }}" onchange="applyFilters()">
                 </div>
             </div>
         </div>
@@ -75,36 +84,54 @@
                     <label><input type="checkbox" data-col="style" checked> Style</label>
                     <label><input type="checkbox" data-col="label" checked> Label</label>
                     <label><input type="checkbox" data-col="catalog" checked> Catalog #</label>
-                    <label><input type="checkbox" data-col="rating" checked> Rating</label>
                     <label><input type="checkbox" data-col="date_added" checked> Date Added</label>
                 </div>
             </div>
             
             <div class="results-count" id="results-count">{{ total }} items</div>
             <div class="export-buttons">
-                <button class="btn btn-sm" onclick="exportWantlistCSV()" title="Export to CSV">📊 CSV</button>
-                <button class="btn btn-sm" onclick="exportWantlistPDF()" title="Export to PDF">📄 PDF</button>
+                <button class="btn btn-sm" onclick="exportCSV()" title="Export to CSV">📊 CSV</button>
+                <button class="btn btn-sm" onclick="exportPDF()" title="Export to PDF">📄 PDF</button>
             </div>
         </div>
     </div>
     
     <!-- Content -->
     <div class="collection-content" id="collection-content">
+        <!-- Bulk Actions Bar -->
+        <div class="bulk-actions-bar" id="bulk-actions-bar" style="display:none;">
+            <div class="bulk-actions-left">
+                <label class="bulk-checkbox">
+                    <input type="checkbox" id="select-all-visible" onchange="toggleSelectAllVisible()">
+                    <span>Select all visible</span>
+                </label>
+                <span class="selected-count" id="selected-count">0 selected</span>
+            </div>
+            <div class="bulk-actions-right">
+                <button class="btn btn-sm" onclick="bulkAddNotes()" title="Add notes to selected">📝 Add Notes</button>
+                <button class="btn btn-sm" onclick="bulkExportCSV()" title="Export selected to CSV">📊 Export CSV</button>
+                <button class="btn btn-sm" onclick="clearSelection()" title="Clear selection">Clear</button>
+            </div>
+        </div>
+        
         <!-- Table view -->
         <div class="table-view" id="table-view">
-            <table class="data-table">
+            <table class="data-table collection-table">
                 <thead>
                     <tr>
-                        <th class="col-thumb" data-sort="thumb"></th>
-                        <th class="col-artist" data-sort="artist"><span>Artist</span></th>
-                        <th class="col-title" data-sort="title"><span>Title</span></th>
-                        <th class="col-year" data-sort="year"><span>Year</span></th>
-                        <th class="col-format" data-sort="format"><span>Format</span></th>
-                        <th class="col-style" data-sort="style"><span>Style</span></th>
-                        <th class="col-label" data-sort="label"><span>Label</span></th>
-                        <th class="col-catalog" data-sort="catalog"><span>Catalog #</span></th>
-                        <th class="col-rating" data-sort="rating"><span>Rating</span></th>
-                        <th class="col-date_added" data-sort="date_added"><span>Date Added</span></th>
+                        <th class="col-checkbox" style="width:30px;">
+                            <input type="checkbox" id="select-all-visible-th" onchange="toggleSelectAllVisible()" title="Select all visible">
+                        </th>
+                        <th class="col-thumb"></th>
+                        <th class="col-artist sortable" data-sort="artist"><span>Artist</span></th>
+                        <th class="col-title sortable" data-sort="title"><span>Title</span></th>
+                        <th class="col-year sortable" data-sort="year"><span>Year</span></th>
+                        <th class="col-format sortable" data-sort="format"><span>Format</span></th>
+                        <th class="col-style sortable" data-sort="style"><span>Style</span></th>
+                        <th class="col-label sortable" data-sort="label"><span>Label</span></th>
+                        <th class="col-catalog sortable" data-sort="catalog"><span>Catalog #</span></th>
+                        <th class="col-date_added sortable" data-sort="date_added"><span>Date Added</span></th>
+                        <th class="col-view"><span>View</span></th>
                     </tr>
                 </thead>
                 <tbody id="table-body"></tbody>
@@ -158,60 +185,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/collection.js"></script>
-<script>
-// Wantlist-specific config
-const items = {{ items_json|safe }};
-const totalPages = {{ pages }};
-
-initCollection({
-    items: items,
-    totalPages: totalPages,
-    apiPrefix: '/api',
-    hasRating: true
-});
-
-// Wantlist-specific functions
-function applyFilters() {
-    const q = document.getElementById('global-search').value;
-    const format = document.getElementById('filter-format').value;
-    const style = document.getElementById('filter-style').value;
-    const label = document.getElementById('filter-label').value;
-    const yearFrom = document.getElementById('filter-year-from').value;
-    const yearTo = document.getElementById('filter-year-to').value;
-    
-    const params = new URLSearchParams({q, format, style, label, year_from: yearFrom, year_to: yearTo, per_page: {{ per_page }}});
-    window.location.href = '{{ url_for("wantlist.wantlist") }}?' + params.toString();
-}
-
-function searchDiscogs() {
-    const q = document.getElementById('global-search').value;
-    if (q) window.open('https://www.discogs.com/search/?q=' + encodeURIComponent(q) + '&type=release', '_blank');
-}
-
-function exportWantlistCSV() {
-    window.location.href = '/export/csv?source=wantlist';
-}
-
-function exportWantlistPDF() {
-    window.location.href = '/export/pdf?source=wantlist';
-}
-
-function gotoPage() {
-    const page = document.getElementById('goto-page').value;
-    if (page) {
-        const params = new URLSearchParams(window.location.search);
-        params.set('page', page);
-        window.location.href = window.location.pathname + '?' + params.toString();
-    }
-}
-
-function changePerPage() {
-    const perPage = document.getElementById('per-page').value;
-    const params = new URLSearchParams(window.location.search);
-    params.set('per_page', perPage);
-    params.set('page', 1);
-    window.location.href = window.location.pathname + '?' + params.toString();
-}
-</script>
+<script id="collection-data" type="application/json" data-total-pages="{{ pages }}">{{ items_json|safe }}</script>
+<script src="{{ url_for('static', filename='js/collection.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

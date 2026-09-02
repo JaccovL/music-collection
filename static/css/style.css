@@ -106,6 +106,8 @@ a:hover {
 
 .nav-left a.active {
     border-bottom-color: #ffffff;
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .nav-user {
@@ -220,7 +222,7 @@ a:hover {
 
 /* Container */
 .container {
-    max-width: 1400px;
+    max-width: 95%;
     margin: 0 auto;
     padding: 1.5rem;
 }
