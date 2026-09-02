@@ -24,6 +24,7 @@ A web application for browsing and managing a personal music collection synced f
 - **Open on Discogs** — Direct link from detail modal to Discogs release page
 - **Responsive Design** — Works on desktop, tablet, and mobile
 - **Dark/Light Theme** — Toggle with one click or follow system preference
+- **Active Page Indicator** — Navbar highlights current page (Collection/Wantlist)
 
 #### Keyboard Shortcuts
 
@@ -35,11 +36,6 @@ A web application for browsing and managing a personal music collection synced f
 | `→` (Arrow Right) | Next page |
 | `T` | Toggle dark/light theme |
 | `V` | Toggle table/card view |
-- **Bulk Actions** — Select multiple releases and add notes or export to CSV
-- **Detail Modal** — Click any release for full info: cover image, tracklist, metadata
-- **Open on Discogs** — Direct link from detail modal to Discogs release page
-- **Responsive Design** — Works on desktop, tablet, and mobile
-- **Dark/Light Theme** — Toggle with one click or follow system preference
 
 ### Administration
 - **LDAP Auth Ready** — Settings page configured for LDAP integration
@@ -50,7 +46,22 @@ A web application for browsing and managing a personal music collection synced f
 - **Settings Panel** — Configure Discogs token, update interval, database connection, features
 - **Sync Status** — Real-time progress with cancel support, CEST/CET timestamps
 
+### Security
+- **CSRF Protection** — All forms and API calls protected with Flask-WTF
+- **Rate Limiting** — 200 requests/minute default
+- **Password Encryption** — Fernet-based encryption for stored passwords
+- **Content Security Policy** — CSP headers with nonce support
+- **Security Headers** — X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy
+
 ## Version History
+
+### v2.2.0 (2026-09-02)
+- **Phase 5: Security** — Rate limiting, password encryption, CSP headers
+- **Bug Fixes** — Health check endpoint, CSP for Chart.js, table width, active page indicators
+- **Layout Equality** — Collection and Wantlist pages now have identical layouts
+- **CSRF for Sync** — All sync buttons now include CSRF token
+- **Search Fix** — Fixed duplicate table alias error in FULLTEXT search
+- **FULLTEXT Indexes** — Created missing indexes for titles, artists, labels, tracks
 
 ### v2.1.0 (2026-09-02)
 - **Blueprint Architecture** — app.py refactored to 6 blueprints (auth, collection, wantlist, admin, api, export)

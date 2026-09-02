@@ -1,50 +1,42 @@
-# Release v2.1.0
+# Release v2.2.0
 
 ## What's New
 
-### Code Architecture (Phase 1)
-- **Blueprint split** — `app.py` refactored from 1,194 lines to 5 blueprints (auth, collection, wantlist, admin, api, export)
-- **App factory pattern** — `app_factory.py` with `create_app()` for testability
-- **Shared JavaScript** — `static/js/collection.js` used by both Collection and Wantlist pages
-- **Extensions module** — `extensions.py` centralizes Flask extensions
-- **Cancel events module** — `cancel_events.py` breaks circular import
+### Security (Phase 5)
+- **Rate limiting** — Flask-Limiter with 200 req/min default
+- **Password encryption** — Fernet-based encryption using SHA256-derived key
+- **CSP headers** — Content Security Policy with nonce support
+- **Security headers** — X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- **CSRF protection** — All POST forms and API calls protected
 
-### Performance (Phase 2)
-- **FULLTEXT search** — MySQL FULLTEXT indexes + `MATCH ... AGAINST` for fast search
-- **Batch track count API** — `/api/track-counts` returns all counts in single query (N+1 → 1)
-- **Filter cache invalidation** — Cache auto-clears after sync completes
-
-### Security
-- **CSRF protection** — Flask-WTF CSRFProtect on all forms (login, settings)
-- **Thread-safe sync tracking** — `_active_syncs_lock` prevents race conditions
-
-### Bug Fixes
-- **Circular import** — Fixed `sync_service.py` ↔ `app.py` circular dependency
-- **Search join** — Explicit `Artist` join in `apply_common_filters()`
-- **Duplicate flash** — Fixed "All data verified complete" appearing twice
-- **Private API usage** — Replaced `scheduler._jobstore` with public `get_jobs()`
+### Bug Fixes & Polish
+- **Health Check endpoint** — Fixed `url_for` blueprint prefix
+- **CSP for Chart.js** — Allows CDN scripts for statistics charts
+- **Table width** — Container now 95% (was 1400px max)
+- **Active page indicators** — Navbar highlights Collection/Wantlist
+- **Collection = Wantlist layout** — Equal search, filters, bulk actions, columns
+- **Sync CSRF** — All sync buttons now include CSRF token
+- **Search join** — Fixed duplicate table alias error
+- **FULLTEXT indexes** — Created missing indexes for search
+- **Import fixes** — Added missing `import json` in blueprints
 
 ### Files Modified
-- `app_factory.py` — New: App factory pattern
-- `app_utils.py` — New: Shared utilities (filters, health, export, cache)
-- `cancel_events.py` — New: Sync cancel management
-- `extensions.py` — New: Flask extensions
-- `blueprints/auth.py` — New: Login, logout
-- `blueprints/collection.py` — New: Search, release detail, artist detail
-- `blueprints/wantlist.py` — New: Wantlist page, detail
-- `blueprints/admin.py` — New: Settings, sync, reset, db stats
-- `blueprints/api.py` — New: All API endpoints
-- `blueprints/export.py` — New: CSV, PDF export
-- `static/js/collection.js` — New: Shared JS with keyboard shortcuts
-- `migrations/add_fulltext_indexes.py` — New: FULLTEXT index migration
-- `templates/search.html` — Refactored to use shared JS
-- `templates/wantlist.html` — Refactored to use shared JS
-- `templates/login.html` — CSRF token added
-- `templates/admin_settings.html` — CSRF token added
-- `templates/admin_sync_status.html` — Duplicate flash fix
-- `sync_service.py` — Cancel checks, module-level imports
-- `requirements.txt` — Added cryptography
+- `app_factory.py` — Rate limiting, CSP, security headers
+- `blueprints/auth.py` — Fernet password encryption
+- `blueprints/collection.py` — Search fix, JSON import
+- `blueprints/admin.py` — CSRF-protected endpoints
+- `blueprints/api.py` — Track counts accepts POST
+- `templates/base.html` — CSRF meta tag, active page CSS, url_for fixes
+- `templates/search.html` — data-total-pages attribute
+- `templates/wantlist.html` — Aligned with collection layout
+- `templates/admin_sync_status.html` — CSRF in all fetch calls, url_for fixes
+- `templates/admin_health.html` — url_for blueprint prefix
+- `templates/admin_settings.html` — Password change section
+- `static/js/collection.js` — Auto-init, selector fix
+- `static/css/style.css` — Container width, active nav styling
+- `models.py` — password_hash column
+- `requirements.txt` — Flask-Limiter, cryptography
 
 ---
 
-**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.0.5...v2.1.0
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.1.0...v2.2.0

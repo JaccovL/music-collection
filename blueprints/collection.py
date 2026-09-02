@@ -1,5 +1,6 @@
 """Collection blueprint — search, release detail, artist detail."""
-from flask import Blueprint, render_template, request, jsonify
+import json
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from extensions import db
 from models import Release, Artist, Track
@@ -26,15 +27,20 @@ def search():
     sort = request.args.get('sort', 'artist')
     order = request.args.get('order', 'asc')
     
-    q = Release.query.options(db.joinedload(Release.artist))
+    q = Release.query
     q = apply_common_filters(q, **filters)
     
+    # Sort by artist name requires joining artists table
     sort_map = {
         'title': Release.title, 'artist': Artist.name, 'year': Release.year,
         'label': Release.label, 'date_added': Release.date_added, 'format': Release.format
     }
     sort_col = sort_map.get(sort, Release.title)
-    q = q.join(Artist).order_by(sort_col.desc() if order == 'desc' else sort_col)
+    # Check if Artist is already joined (e.g., by apply_common_filters when searching)
+    # Use reset_joinpoint to avoid duplicate joins on the same table
+    if not filters.get('search'):
+        q = q.join(Artist)
+    q = q.order_by(sort_col.desc() if order == 'desc' else sort_col)
     
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     releases = pagination.items
@@ -51,6 +57,7 @@ def search():
     
     return render_template('search.html',
         releases=releases, releases_json=releases_json, pagination=pagination,
+        pages=pagination.pages,
         query=filters['search'], sort=sort, order=order,
         format_filter=filters['format_filter'],
         style_filter=filters['style_filter'], label_filter=filters['label_filter'],
