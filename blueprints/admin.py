@@ -23,6 +23,54 @@ _active_syncs = {}
 _active_syncs_lock = threading.Lock()
 
 
+
+@admin_bp.route('/admin/statistics-api/growth')
+@login_required
+@admin_required
+def statistics_api_growth():
+    """Return collection growth over time (releases added per month)."""
+    from sqlalchemy import func
+    
+    data = db.session.query(
+        func.date_format(Release.date_added, '%Y-%m').label('month'),
+        func.count(Release.id).label('count')
+    ).filter(Release.date_added.isnot(None)).group_by('month').order_by('month').all()
+    
+    result = [{'label': d[0], 'value': d[1]} for d in data if d[0]]
+    return jsonify(result)
+
+
+@admin_bp.route('/admin/statistics-api/artists-top')
+@login_required
+@admin_required
+def statistics_api_artists_top():
+    """Return most collected artists."""
+    from models import Artist
+    
+    data = db.session.query(
+        Artist.name,
+        func.count(Release.id).label('count')
+    ).join(Release).group_by(Artist.id, Artist.name).order_by(func.count(Release.id).desc()).limit(10).all()
+    
+    result = [{'label': d[0] or 'Unknown', 'value': d[1]} for d in data if d[0]]
+    return jsonify(result)
+
+
+@admin_bp.route('/admin/statistics-api/format-trend')
+@login_required
+@admin_required
+def statistics_api_format_trend():
+    """Return format distribution over time (by year)."""
+    from sqlalchemy import func
+    
+    data = db.session.query(
+        func.ifnull(Release.format, 'Unknown').label('format'),
+        func.count(Release.id).label('count')
+    ).group_by('format').order_by(func.count(Release.id).desc()).limit(8).all()
+    
+    result = [{'label': d[0] or 'Unknown', 'value': d[1]} for d in data]
+    return jsonify(result)
+
 def _run_in_background(fn, sync_type=None):
     """Run a function in a background thread with app context."""
     def wrapper(app_instance):
