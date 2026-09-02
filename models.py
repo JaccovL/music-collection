@@ -1,7 +1,7 @@
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from extensions import db
 
 AMSTERDAM_TZ = ZoneInfo('Europe/Amsterdam')
 
@@ -17,14 +17,13 @@ def utc_to_amsterdam(dt):
         dt = dt.replace(tzinfo=ZoneInfo('UTC'))
     return dt.astimezone(AMSTERDAM_TZ)
 
-db = SQLAlchemy()
-
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120))
     is_admin = db.Column(db.Boolean, default=False)
+    password_hash = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=_now)
     last_login = db.Column(db.DateTime)
 

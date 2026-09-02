@@ -18,7 +18,23 @@ A web application for browsing and managing a personal music collection synced f
 - **Dual Views** — Table view (spreadsheet-like) or Card view (grid of covers)
 
 ### User Experience
-- **Keyboard Shortcuts** — Ctrl+K (search), Esc (close modal), Arrow keys (pagination), T (theme), V (view toggle)
+- **Keyboard Shortcuts** — see table below
+- **Bulk Actions** — Select multiple releases and add notes or export to CSV
+- **Detail Modal** — Click any release for full info: cover image, tracklist, metadata
+- **Open on Discogs** — Direct link from detail modal to Discogs release page
+- **Responsive Design** — Works on desktop, tablet, and mobile
+- **Dark/Light Theme** — Toggle with one click or follow system preference
+
+#### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+K` / `Cmd+K` | Focus search bar |
+| `Esc` | Close modal / menu |
+| `←` (Arrow Left) | Previous page |
+| `→` (Arrow Right) | Next page |
+| `T` | Toggle dark/light theme |
+| `V` | Toggle table/card view |
 - **Bulk Actions** — Select multiple releases and add notes or export to CSV
 - **Detail Modal** — Click any release for full info: cover image, tracklist, metadata
 - **Open on Discogs** — Direct link from detail modal to Discogs release page
