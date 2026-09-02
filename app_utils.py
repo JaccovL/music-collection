@@ -55,7 +55,6 @@ def set_setting(key, value):
 
 def get_distinct(column, limit=50):
     """Get distinct non-null values from a column."""
-    from models import db
     return [r[0] for r in db.session.query(column).distinct().limit(limit).all() if r[0]]
 
 
@@ -81,6 +80,12 @@ def get_filter_options():
     return _filter_cache['data']
 
 
+def invalidate_filter_cache():
+    """Invalidate the filter cache (call after sync completes)."""
+    _filter_cache['ts'] = 0
+    _filter_cache['data'] = {}
+
+
 def get_request_filters():
     """Extract and return common filter parameters from request."""
     return {
@@ -94,24 +99,42 @@ def get_request_filters():
 
 
 def apply_common_filters(q, search, format_filter, style_filter, label_filter, year_from, year_to, model=None):
-    """Apply common filters to a query."""
+    """Apply common filters to a query. Uses FULLTEXT search when available."""
     from models import Release, Artist, Track, Wantlist
+    from sqlalchemy import text
     
     if model is None:
         model = Release
     
     if search:
-        search_filter = f"%{search}%"
         if model == Release:
             q = q.join(Artist, Artist.id == Release.artist_id)
             q = q.outerjoin(Track, Track.release_id == Release.id)
-            q = q.filter(db.or_(
-                Release.title.like(search_filter),
-                Artist.name.like(search_filter),
-                Release.label.like(search_filter),
-                Track.title.like(search_filter)
-            ))
+            
+            # Try FULLTEXT search first, fall back to LIKE
+            search_expr = search.strip()
+            if len(search_expr) >= 2:
+                # Use BOOLEAN MODE for partial word matching
+                q = q.filter(text("""
+                    MATCH(releases.title) AGAINST(:search IN BOOLEAN MODE)
+                    OR MATCH(artists.name) AGAINST(:search IN BOOLEAN MODE)
+                    OR MATCH(releases.label) AGAINST(:search IN BOOLEAN MODE)
+                    OR MATCH(tracks.title) AGAINST(:search IN BOOLEAN MODE)
+                    OR releases.title LIKE :like_search
+                    OR artists.name LIKE :like_search
+                    OR releases.label LIKE :like_search
+                    OR tracks.title LIKE :like_search
+                """).bindparams(search=f"{search_expr}*", like_search=f"%{search_expr}%"))
+            else:
+                search_filter = f"%{search}%"
+                q = q.filter(db.or_(
+                    Release.title.like(search_filter),
+                    Artist.name.like(search_filter),
+                    Release.label.like(search_filter),
+                    Track.title.like(search_filter)
+                ))
         else:
+            search_filter = f"%{search}%"
             q = q.filter(db.or_(
                 Wantlist.title.like(search_filter),
                 Wantlist.artist_name.like(search_filter),

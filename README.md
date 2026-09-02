@@ -26,6 +26,16 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.1.0 (2026-09-02)
+- **Blueprint split** — `app.py` refactored to 5 blueprints (auth, collection, wantlist, admin, api, export)
+- **App factory pattern** — `app_factory.py` with `create_app()` for testability
+- **Shared JavaScript** — `static/js/collection.js` used by both Collection and Wantlist pages
+- **FULLTEXT search** — MySQL FULLTEXT indexes + `MATCH ... AGAINST` for fast search
+- **Batch track count API** — `/api/track-counts` returns all counts in single query (N+1 → 1)
+- **CSRF protection** — Flask-WTF CSRFProtect on all forms
+- **Thread-safe sync tracking** — `_active_syncs_lock` prevents race conditions
+- **Filter cache invalidation** — Cache auto-clears after sync completes
+
 ### v2.0.5 (2026-09-02)
 - **Search join fix** — Explicitly join Artist table in `apply_common_filters()`
 - **Batch track count API** — New `/api/track-counts` endpoint (N+1 → 1 query)
