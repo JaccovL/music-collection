@@ -36,15 +36,15 @@ def create_app():
     
     # Phase 5.3: Content Security Policy
     csp = {
-        'default-src': 'self',
-        'script-src': 'self',
-        'style-src': 'self' + ' ' + 'unsafe-inline',
-        'img-src': 'self https: data:',
-        'font-src': 'self',
-        'connect-src': 'self',
-        'frame-ancestors': 'none',
-        'form-action': 'self',
-        'base-uri': 'self',
+        'default-src': "'self'",
+        'script-src': "'self'",
+        'style-src': "'self' 'unsafe-inline'",
+        'img-src': "'self' https: data:",
+        'font-src': "'self'",
+        'connect-src': "'self'",
+        'frame-ancestors': "'none'",
+        'form-action': "'self'",
+        'base-uri': "'self'",
     }
     
     @app.after_request
