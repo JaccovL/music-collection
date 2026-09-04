@@ -55,6 +55,10 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.2.3 (2026-09-04)
+- **Sync Progress Endpoint** — `/admin/sync-progress` returns % complete, country count, last sync status
+- **Live Sync Status** — Real-time progress tracking via API endpoint
+
 ### v2.2.2 (2026-09-04)
 - **Duplicate Suppression** — Prevents duplicate "Missing data detected" messages during verification
 - **Sync Polish** — Streamlined verification logging

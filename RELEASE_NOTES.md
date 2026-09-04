@@ -1,3 +1,43 @@
+# Release v2.2.3
+
+## What's New
+
+### Sync Progress Endpoint
+- **`/admin/sync-progress`** — Returns JSON with real-time sync progress
+  - `total_releases` — Total releases in collection
+  - `with_country` — Releases with country data populated
+  - `percent_complete` — Country-completion percentage
+  - `last_sync_status` — Status of last sync (running, verifying, success, error)
+  - `last_sync_started` / `last_sync_finished` — Timestamps in CEST
+
+### Files Modified
+- `blueprints/admin.py` — New `admin_sync_progress` endpoint (22 lines)
+
+---
+
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.2.2...v2.2.3
+
+---
+
+# Release v2.2.2
+
+## What's New
+
+### Duplicate Suppression
+- **Guard for double messages** — Suppresses the duplicate "Missing data detected" log when verification runs twice (main + separate-thread)
+- **Streamlined verification logging** — Single log per verification cycle
+
+### Files Modified
+- `sync_service.py` — `_duplicate_suppressed` flag prevents repeated verification messages
+- `README.md` — v2.2.2 section added
+- `RELEASE_NOTES.md` — This file
+
+---
+
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.2.1...v2.2.2
+
+---
+
 # Release v2.2.1
 
 ## What's New
