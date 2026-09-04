@@ -1,3 +1,22 @@
+# Release v2.2.1
+
+## What's New
+
+### Sync Optimization
+- **`expire_all()` before commits** — Prevents SQLAlchemy from detecting stale objects modified in-memory, eliminating false conflicts
+- **`no_autoflush` context manager** — Disables autoflush during batch commits to prevent automatic dirty-checks
+- **Separate-thread verification** — Post-sync field verification runs in a new app context to avoid session conflicts
+- **Lock conflict retry with backoff** — Exponential backoff (0.5s, 1.0s, 1.5s) on MySQL error 1020
+
+### Files Modified
+- `sync_service.py` — Full rewrite: expire_all, no_autoflush, thread-safe verification, batch commits every 50 releases
+
+---
+
+**Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.2.0...v2.2.1
+
+---
+
 # Release v2.2.0
 
 ## What's New

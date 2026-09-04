@@ -55,6 +55,10 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.2.1 (2026-09-04)
+- **Sync Optimization** — `expire_all()` before commits, `no_autoflush` context, separate-thread verification
+- **Lock Conflict Fix** — Eliminates 1020 conflicts during batch commit
+
 ### v2.2.0 (2026-09-02)
 - **Phase 5: Security** — Rate limiting, password encryption, CSP headers
 - **Bug Fixes** — Health check endpoint, CSP for Chart.js, table width, active page indicators
