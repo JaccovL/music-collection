@@ -6,6 +6,27 @@
     <h1>Sync Status</h1>
     
     <section class="settings-section">
+        <h2>Collection Sync Progress</h2>
+        <div id="collection-progress" style="margin: 0.5rem 0;">
+            <div class="progress-bar"><div id="collection-progress-fill" class="progress-fill" style="width: 0%"></div></div>
+            <p style="font-size: 0.9rem; color: var(--text-muted);">Country-complete: <strong id="country-pct">0%</strong> (<span id="with-country-count">0</span> / <span id="total-count">0</span> releases)</p>
+        </div>
+        <script>
+        (function() {
+            fetch('/admin/sync-progress')
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('collection-progress-fill').style.width = d.percent_complete + '%';
+                document.getElementById('country-pct').textContent = d.percent_complete + '%';
+                document.getElementById('with-country-count').textContent = d.with_country;
+                document.getElementById('total-count').textContent = d.total_releases;
+            })
+            .catch(() => {});
+        })();
+        </script>
+    </section>
+
+    <section class="settings-section">
         <h2>Collection Sync</h2>
         <div id="sync-log-status">
             {% if sync_log %}

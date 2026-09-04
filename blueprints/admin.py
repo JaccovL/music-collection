@@ -194,6 +194,19 @@ def _scheduled_sync():
                 service.sync_collection(triggered_by='cron', fetch_country=True)
                 if is_cancelled('collection'):
                     return
+                # v2.2.3: Auto-sync wantlist if enabled (was manual only)
+                if get_setting('wantlist_enabled', 'false') == 'true':
+                    from sync_service import SyncService as WantlistSyncService
+                    try:
+                        ws = WantlistSyncService(token, username)
+                        if hasattr(ws, 'sync_wantlist'):
+                            ws.sync_wantlist(triggered_by='cron')
+                        else:
+                            import logging
+                            logging.warning("SyncService has no sync_wantlist method; wantlist remains manual")
+                    except Exception as we:
+                        import logging
+                        logging.error(f"Auto wantlist sync failed: {we}")
                 releases = Release.query.outerjoin(Track).filter(Track.id == None).all()
                 if releases and not is_cancelled('track'):
                     client = DiscogsClient(token, username)
