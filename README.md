@@ -55,6 +55,10 @@ A web application for browsing and managing a personal music collection synced f
 
 ## Version History
 
+### v2.2.2 (2026-09-04)
+- **Duplicate Suppression** — Prevents duplicate "Missing data detected" messages during verification
+- **Sync Polish** — Streamlined verification logging
+
 ### v2.2.1 (2026-09-04)
 - **Sync Optimization** — `expire_all()` before commits, `no_autoflush` context, separate-thread verification
 - **Lock Conflict Fix** — Eliminates 1020 conflicts during batch commit

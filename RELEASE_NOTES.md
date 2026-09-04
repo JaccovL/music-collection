@@ -59,3 +59,7 @@
 ---
 
 **Full Changelog**: https://github.com/JaccovL/music-collection/compare/v2.1.0...v2.2.0
+=== v2.2.2 RELEASE NOTES ===
+### v2.2.2 (2026-09-04)
+- Duplicate message suppression in sync verification
+- Streamlined log output (no double "Missing data detected")

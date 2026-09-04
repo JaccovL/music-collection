@@ -137,7 +137,9 @@ def _fix_missing_fields(missing, token, username, log_entry=None, release_ids=No
     
     if 'country' in missing:
         if release_ids:
-            logger.info(f"Fixing missing country for {len(release_ids)} recently updated releases")
+            if not hasattr(_fix_missing_fields, '_duplicate_suppressed'):
+                _fix_missing_fields._duplicate_suppressed = True
+                logger.info(f"Fixing missing country for {len(release_ids)} recently updated releases")
             releases = Release.query.filter(Release.id.in_(release_ids)).all()
         else:
             logger.info(f"Fixing missing country for {missing['country']} releases")
