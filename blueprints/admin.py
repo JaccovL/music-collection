@@ -24,6 +24,28 @@ _active_syncs_lock = threading.Lock()
 
 
 
+@admin_bp.route('/admin/sync-progress')
+@admin_required
+def admin_sync_progress():
+    """Return sync progress with country-completion % (v2.2.2 improvement)."""
+    from sqlalchemy import func
+    total = db.session.query(Release).count()
+    with_country = db.session.query(Release).filter(
+        (Release.country.isnot(None)) & (Release.country != '')
+    ).count()
+    pct = round(100 * with_country / total, 1) if total else 0
+    # Also include last sync status
+    last_sync = db.session.query(UpdateLog).order_by(UpdateLog.started_at.desc()).first()
+    return jsonify({
+        'total_releases': total,
+        'with_country': with_country,
+        'percent_complete': pct,
+        'last_sync_status': last_sync.status if last_sync else None,
+        'last_sync_started': str(last_sync.started_at) if last_sync and last_sync.started_at else None,
+        'last_sync_finished': str(last_sync.finished_at) if last_sync and last_sync.finished_at else None,
+    })
+
+
 @admin_bp.route('/admin/statistics-api/growth')
 @login_required
 @admin_required
